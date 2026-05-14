@@ -1,6 +1,59 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import {
+  createPassage,
+  deletePassage,
+  fetchPassages,
+  fetchVehicleTypes,
+} from "@/lib/api";
+import { CreatePassagePayload, Passage, VehicleTypeOption } from "@/types";
+
 export default function HomePage() {
+  const [passages, setPassages] = useState<Passage[]>([]);
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleTypeOption[]>([]);
+  const [vehicleId, setVehicleId] = useState("");
+  const [vehicleType, setVehicleType] = useState("");
+  const [timestamp, setTimestamp] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [loadingPassages, setLoadingPassages] = useState(false);
+
+  const loadPassages = async () => {
+    setLoadingPassages(true);
+    const data = await fetchPassages();
+    setPassages(data);
+    setLoadingPassages(false);
+  };
+
+  useEffect(() => {
+    loadPassages();
+    fetchVehicleTypes().then((types) => {
+      setVehicleTypes(types);
+      if (types.length > 0) setVehicleType(types[0].vehicleType);
+    });
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vehicleId || !vehicleType || !timestamp) return;
+    setSubmitting(true);
+    const payload: CreatePassagePayload = {
+      vehicleId,
+      vehicleType,
+      timestamp: new Date(timestamp).toISOString(),
+    };
+    await createPassage(payload);
+    setVehicleId("");
+    setTimestamp("");
+    await loadPassages();
+    setSubmitting(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    await deletePassage(id);
+    await loadPassages();
+  };
+
   return (
     <main className="section">
       <div className="container">
