@@ -29,6 +29,70 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
+async function handleFormatErrors<D>(res: Response): Promise<D> {
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`API error: ${res.status} ${res.statusText} - ${errorText}`);
+  } else {
+    return res.json() as Promise<D>;
+  }
+}
+
+function setupErrorDialog(title: string, message: string, path: string) {
+  console.error(`Error in API call to ${path}: ${message}`);
+}
+
+
+export const apiGET = async <D>(
+  path: string,
+  headers: Record<string, string> = {}
+) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/${path}`, {
+      method: 'GET',
+      headers: httpHeaders(headers),
+    });
+
+    return handleFormatErrors<D>(res)
+  } catch (error: unknown) {
+
+    setupErrorDialog(
+      '',
+      error instanceof Error ? error.message : String(error),
+      path
+    );
+  }
+}
+
+const httpHeaders = (
+  headers?: Record<string, string>
+): Record<string, string> => {
+  const extra_headers = {
+    'Content-Type': 'application/json',
+    ...headers,
+  }
+
+  return extra_headers
+}
+
+export const apiPOST = async <T, D>(path: string, data: T, headers?: Record<string, string>) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/${path}`, {
+      method: 'POST',
+      headers: httpHeaders(headers),
+      body: JSON.stringify(data),
+    });
+
+    return await handleFormatErrors<D>(res)
+  } catch (error: unknown) {
+
+    setupErrorDialog(
+      '',
+      error instanceof Error ? error.message : String(error),
+      path
+    );
+  }
+}
 export async function fetchPassages(): Promise<Passage[]> {
   // TODO: Implement — GET /api/passages
   throw new Error("fetchPassages not implemented");
