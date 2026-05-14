@@ -6,10 +6,6 @@ body {
   color: #363636;
 }
 
-main {
-  min-height: 100vh;
-}
-
 .loader {
   display: inline-block;
   width: 2rem;
