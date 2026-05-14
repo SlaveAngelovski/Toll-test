@@ -27,7 +27,7 @@ const createPassageSchema = z.object({
 
 export const passagesRouter = Router();
 
-passagesRouter.get("/", (_req, res) => {
+passagesRouter.get("/getPassages", (_req, res) => {
   const passages = listPassages();
   const charges = calculateCharges(passages);
 
@@ -46,7 +46,7 @@ passagesRouter.get("/", (_req, res) => {
   res.json({ data: response });
 });
 
-passagesRouter.post("/", (req, res) => {
+passagesRouter.post("/postPassages", (req, res) => {
   const parseResult = createPassageSchema.safeParse(req.body);
 
   if (!parseResult.success) {
@@ -68,7 +68,7 @@ passagesRouter.post("/", (req, res) => {
   res.status(201).json({ data: response });
 });
 
-passagesRouter.delete("/:id", (req, res) => {
+passagesRouter.delete("/deletePassages/:id", (req, res) => {
   const { id } = req.params;
   const wasRemoved = removePassage(id);
 

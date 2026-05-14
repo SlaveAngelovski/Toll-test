@@ -93,24 +93,64 @@ export const apiPOST = async <T, D>(path: string, data: T, headers?: Record<stri
     );
   }
 }
+
 export async function fetchPassages(): Promise<Passage[]> {
-  // TODO: Implement — GET /api/passages
-  throw new Error("fetchPassages not implemented");
+  try {
+    const data = await apiGET<ApiListResponse<Passage[]>>('api/passages/getPassages');
+    return data?.data ?? [];
+  } catch (error: unknown) {
+    setupErrorDialog(
+      '',
+      error instanceof Error ? error.message : String(error),
+      'api/passages'
+    );
+    return [];
+  }
 }
 
 export async function fetchVehicleTypes(): Promise<VehicleTypeOption[]> {
-  // TODO: Implement — GET /api/meta/vehicle-types
-  throw new Error("fetchVehicleTypes not implemented");
+  try {
+    const data = await apiGET<ApiListResponse<VehicleTypeOption[]>>('api/meta/vehicle-types');
+    return data?.data ?? [];
+  } catch (error: unknown) {
+    setupErrorDialog(
+      '',
+      error instanceof Error ? error.message : String(error),
+      'api/meta/vehicle-types'
+    );
+    return [];
+  }
 }
 
 export async function createPassage(
   payload: CreatePassagePayload
 ): Promise<void> {
-  // TODO: Implement — POST /api/passages
-  throw new Error("createPassage not implemented");
+  try {
+    await apiPOST<CreatePassagePayload, Passage>('api/passages/postPassages', payload);
+  } catch (error: unknown) {
+    setupErrorDialog(
+      '',
+      error instanceof Error ? error.message : String(error),
+      'api/passages'
+    );
+  }
 }
 
 export async function deletePassage(id: string): Promise<void> {
-  // TODO: Implement — DELETE /api/passages/:id
-  throw new Error("deletePassage not implemented");
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/passages/deletePassages/${id}`, {
+      method: 'DELETE',
+      headers: httpHeaders(),
+    });
+    if (!res.ok && res.status !== 204) {
+      const errorText = await res.text();
+      throw new Error(`API error: ${res.status} ${res.statusText} - ${errorText}`);
+    }
+  } catch (error: unknown) {
+    setupErrorDialog(
+      '',
+      error instanceof Error ? error.message : String(error),
+      `api/passages/deletePassages/${id}`
+    );
+  }
 }
