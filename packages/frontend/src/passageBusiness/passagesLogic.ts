@@ -112,12 +112,13 @@ function toDateKey(timestamp: string): string {
 // Passage annotation — per-passage charge detail with reason
 // ---------------------------------------------------------------------------
 
-export type NotChargedReason =
-    | "toll-free-vehicle"
-    | "toll-free-date"
-    | "within-rolling-window"
-    | "fee-is-zero"
-    | "daily-cap-reached";
+export enum NotChargedReason {
+    TOLL_FREE_VEHICLE = "toll free vehicle",
+    TOLL_FREE_DATE = "toll free date",
+    WITHIN_ROLLING_WINDOW = "within rolling window",
+    FEE_IS_ZERO = "fee is zero",
+    DAILY_CAP_REACHED = "daily cap reached",
+}
 
 export interface AnnotationInput {
     id: string;
@@ -161,7 +162,7 @@ export function annotatePassages(
             baseFee: getBaseFee(p.timestamp),
             charged: false,
             chargedFee: 0,
-            reason: "toll-free-vehicle" as NotChargedReason,
+            reason: NotChargedReason.TOLL_FREE_VEHICLE,
         }));
     }
 
@@ -185,7 +186,7 @@ export function annotatePassages(
                     baseFee: getBaseFee(p.timestamp),
                     charged: false,
                     chargedFee: 0,
-                    reason: "toll-free-date",
+                    reason: NotChargedReason.TOLL_FREE_DATE,
                 });
             }
             continue;
@@ -225,7 +226,7 @@ export function annotatePassages(
                         baseFee: getBaseFee(p.timestamp),
                         charged: false,
                         chargedFee: 0,
-                        reason: "daily-cap-reached",
+                        reason: NotChargedReason.DAILY_CAP_REACHED,
                         windowStart: windowStartISO,
                         windowEnd: windowEndISO,
                         windowIndex: windowIdx,
@@ -240,7 +241,7 @@ export function annotatePassages(
                         baseFee: 0,
                         charged: false,
                         chargedFee: 0,
-                        reason: "fee-is-zero",
+                        reason: NotChargedReason.FEE_IS_ZERO,
                         windowStart: windowStartISO,
                         windowEnd: windowEndISO,
                         windowIndex: windowIdx,
@@ -255,7 +256,7 @@ export function annotatePassages(
                     if (p.id === triggeringId) {
                         result.push({ id: p.id, timestamp: p.timestamp, baseFee, charged: true, chargedFee: applicable, windowStart: windowStartISO, windowEnd: windowEndISO, windowIndex: windowIdx });
                     } else {
-                        result.push({ id: p.id, timestamp: p.timestamp, baseFee, charged: false, chargedFee: 0, reason: "within-rolling-window", windowStart: windowStartISO, windowEnd: windowEndISO, windowIndex: windowIdx });
+                        result.push({ id: p.id, timestamp: p.timestamp, baseFee, charged: false, chargedFee: 0, reason: NotChargedReason.WITHIN_ROLLING_WINDOW, windowStart: windowStartISO, windowEnd: windowEndISO, windowIndex: windowIdx });
                     }
                 }
             }

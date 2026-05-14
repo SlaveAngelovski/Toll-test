@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { Passage } from "@/types";
-import { annotatePassages, NotChargedReason, PassageAnnotation } from "@/passageBusiness/passagesLogic";
+import { annotatePassages, PassageAnnotation } from "@/passageBusiness/passagesLogic";
 
 interface Props {
     passages: Passage[];
@@ -10,14 +10,6 @@ interface Props {
     onDelete: (id: string) => void;
     onAdd: () => void;
 }
-
-const REASON_LABELS: Record<NotChargedReason, string> = {
-    "toll-free-vehicle": "Toll-free vehicle",
-    "toll-free-date": "Toll-free date",
-    "within-rolling-window": "Within 60-min window",
-    "fee-is-zero": "Off-peak (0 DKK)",
-    "daily-cap-reached": "Daily cap reached",
-};
 
 export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -185,7 +177,7 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                                                             </span>
                                                         ) : (
                                                             <span className="tag is-light" title={ann?.reason}>
-                                                                {ann?.reason ? REASON_LABELS[ann.reason] : "Not charged"}
+                                                                {ann?.reason ?? "Not charged"}
                                                             </span>
                                                         )}
                                                     </td>
