@@ -8,6 +8,7 @@ import {
   fetchVehicleTypes,
 } from "@/lib/api";
 import { CreatePassagePayload, Passage, VehicleTypeOption } from "@/types";
+import { AddPassageModal } from "./components/AddPassageModal";
 
 export default function HomePage() {
   const [passages, setPassages] = useState<Passage[]>([]);
@@ -27,31 +28,23 @@ export default function HomePage() {
 
   useEffect(() => {
     loadPassages();
-    fetchVehicleTypes().then((types) => {
-      setVehicleTypes(types);
-      if (types.length > 0) setVehicleType(types[0].vehicleType);
-    });
+    fetchVehicleTypes().then(setVehicleTypes);
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!vehicleId || !vehicleType || !timestamp) return;
-    setSubmitting(true);
-    const payload: CreatePassagePayload = {
-      vehicleId,
-      vehicleType,
-      timestamp: new Date(timestamp).toISOString(),
-    };
-    await createPassage(payload);
-    setVehicleId("");
-    setTimestamp("");
+  const handleAdd = async (vehicleId: string, vehicleType: string, timestamp: string) => {
+    await createPassage({ vehicleId, vehicleType, timestamp });
+    setModalOpen(false);
     await loadPassages();
-    setSubmitting(false);
   };
 
   const handleDelete = async (id: string) => {
     await deletePassage(id);
     await loadPassages();
+  };
+
+  const openModal = (type?: string) => {
+    setPreselectedType(type);
+    setModalOpen(true);
   };
 
   return (
@@ -120,6 +113,7 @@ export default function HomePage() {
             </div>
           </form>
         </div>
+        <VehicleTypePicker vehicleTypes={vehicleTypes} onSelect={openModal} />
 
         {/* Passages Table */}
         <div className="box">
@@ -165,7 +159,22 @@ export default function HomePage() {
               </table>
             </div>
           )}
+          <PassagesTable
+            passages={passages}
+            loading={loadingPassages}
+            onDelete={handleDelete}
+            onAdd={() => openModal()}
+          />
         </div>
+
+        {modalOpen && vehicleTypes.length > 0 && (
+          <AddPassageModal
+            vehicleTypes={vehicleTypes}
+            preselectedType={preselectedType}
+            onClose={() => setModalOpen(false)}
+            onAdd={handleAdd}
+          />
+        )}
       </div>
     </main>
   );
