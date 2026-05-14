@@ -9,6 +9,23 @@ function nowAsDatetimeLocal(): string {
     return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
+/** Converts a datetime-local string ("YYYY-MM-DDTHH:MM") to an ISO-8601 string
+ *  that preserves the browser's local UTC offset, e.g. "2026-05-14T16:49:00+02:00".
+ *  This is required so getBaseFee() can extract the correct local wall-clock time. */
+function datetimeLocalToISO(value: string): string {
+    const date = new Date(value);
+    const offsetMin = -date.getTimezoneOffset(); // getTimezoneOffset() returns UTC-local, flip sign
+    const sign = offsetMin >= 0 ? "+" : "-";
+    const absMin = Math.abs(offsetMin);
+    const hh = String(Math.floor(absMin / 60)).padStart(2, "0");
+    const mm = String(absMin % 60).padStart(2, "0");
+    // Build local wall-clock ISO string without relying on toISOString() (which is UTC)
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+        .toISOString()
+        .slice(0, 19);
+    return `${local}${sign}${hh}:${mm}`;
+}
+
 interface Props {
     vehicleTypes: VehicleTypeOption[];
     preselectedType?: string;
@@ -28,7 +45,7 @@ export function AddPassageModal({ vehicleTypes, preselectedType, onClose, onAdd 
         e.preventDefault();
         if (!vehicleId.trim()) return;
         setSubmitting(true);
-        await onAdd(vehicleId.trim(), vehicleType, new Date(timestamp).toISOString());
+        await onAdd(vehicleId.trim(), vehicleType, datetimeLocalToISO(timestamp));
         setSubmitting(false);
     };
 
