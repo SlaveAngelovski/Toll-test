@@ -179,8 +179,8 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                                     return (
                                         <Fragment key={group.windowStart ?? `no-window-${gi}`}>
                                             {windowLabel && (
-                                                <tr style={{ backgroundColor: "#dbeafe" }}>
-                                                    <td colSpan={5} style={{ paddingLeft: "1.5rem", fontSize: "0.85em", borderTop: "2px solid #bfdbfe" }}>
+                                                <tr className="has-background-grey-lighter">
+                                                    <td colSpan={5} className="is-small pl-2">
                                                         <strong>{windowLabel}</strong>
                                                         {windowTotal > 0 && <span className="tag is-info is-light ml-2">{windowTotal} DKK</span>}
                                                     </td>
@@ -191,11 +191,11 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                                                 const indent = group.windowStart !== undefined ? "3rem" : "2.5rem";
 
                                                 return (
-                                                    <tr key={passage.id} style={{ backgroundColor: "#f8f9fa" }}>
-                                                        <td colSpan={2} style={{ paddingLeft: indent, color: "#555", fontSize: "0.9em" }}>
+                                                    <tr key={passage.id} className="has-background-light">
+                                                        <td colSpan={2} className="is-small" style={{ paddingLeft: indent, color: "#555", fontSize: "0.9em" }}>
                                                             ↳ {formatDateTime(passage.timestamp)}
                                                         </td>
-                                                        <td style={{ fontSize: "0.9em" }}>Base: {ann?.baseFee ?? passage.baseFee} DKK</td>
+                                                        <td className="is-small" style={{ fontSize: "0.9em" }}>Base: {ann?.baseFee ?? passage.baseFee} DKK</td>
                                                         <td><span className={tag.className} title={ann?.reason}>{tag.label}</span></td>
                                                         <td>
                                                             <button className="button is-danger is-small is-outlined" onClick={() => onDelete(passage.id)}>
