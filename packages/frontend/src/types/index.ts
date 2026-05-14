@@ -1,7 +1,7 @@
 export interface Passage {
   id: string;
   vehicleId: string;
-  vehicleType: string;
+  vehicleType: VehicleType;
   timestamp: string;
   baseFee: number;
   chargedFee: number;
@@ -9,7 +9,7 @@ export interface Passage {
 }
 
 export interface VehicleTypeOption {
-  vehicleType: string;
+  vehicleType: VehicleType;
   tollFree: boolean;
 }
 
@@ -19,6 +19,16 @@ export interface ApiListResponse<T> {
 
 export interface CreatePassagePayload {
   vehicleId: string;
-  vehicleType: string;
+  vehicleType: VehicleType;
   timestamp: string;
 }
+
+export type VehicleType =
+  | "car"
+  | "motorbike"
+  | "emergency"
+  | "tractor"
+  | "diplomat"
+  | "military"
+  | "foreign"
+  | "bus";

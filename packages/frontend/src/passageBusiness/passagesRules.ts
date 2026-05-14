@@ -2,15 +2,7 @@
 // Vehicle types, for now I added the types to the frontend and backend separately, but we could move them to a shared package.
 // ---------------------------------------------------------------------------
 
-export type VehicleType =
-    | "car"
-    | "motorbike"
-    | "emergency"
-    | "tractor"
-    | "diplomat"
-    | "military"
-    | "foreign"
-    | "bus";
+import { VehicleType } from "@/types";
 
 export const VEHICLE_TYPES: VehicleType[] = [
     "car",
