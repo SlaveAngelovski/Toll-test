@@ -29,31 +29,24 @@ interface Props {
 
 export function VehicleTypePicker({ vehicleTypes, onSelect }: Props) {
     return (
-        <div className="box mb-5">
-            <h2 className="subtitle is-5 mb-3">Quick Add — click a vehicle to log a passage</h2>
-            <div className="is-flex is-flex-wrap-wrap" style={{ gap: "0.75rem" }}>
+        <div className="box">
+            <h2 className="subtitle is-5">Quick Add — click a vehicle to log a passage</h2>
+            <div className="columns is-gap-2 m-1">
                 {vehicleTypes.map((vt) => (
                     <button
                         key={vt.vehicleType}
-                        className="button is-white"
-                        style={{
-                            flexDirection: "column",
-                            height: "auto",
-                            padding: "0.75rem 1.25rem",
-                            border: "1px solid #dbdbdb",
-                            borderRadius: "10px",
-                            minWidth: "90px",
-                            cursor: "pointer",
-                        }}
+                        className="column is-flex is-flex-direction-column button is-align-items-center is-justify-content-center is-cursor-pointer"
                         onClick={() => onSelect(vt.vehicleType)}
                         title={`Add ${vt.vehicleType} passage`}
                     >
-                        {React.createElement(VEHICLE_ICONS[vt.vehicleType])}
-                        <span className="is-size-7 mt-2" style={{ textTransform: "capitalize" }}>
+                        {<div className="image is-64x64">
+                            {React.createElement(VEHICLE_ICONS[vt.vehicleType])}
+                        </div>}
+                        <div className="mt-2 is-capitalized">
                             {vt.vehicleType}
-                        </span>
+                        </div>
                         {vt.tollFree && (
-                            <span className="tag is-info is-light is-small mt-1">toll-free</span>
+                            <div className="tag is-info is-light is-small mt-1">toll-free</div>
                         )}
                     </button>
                 ))}
