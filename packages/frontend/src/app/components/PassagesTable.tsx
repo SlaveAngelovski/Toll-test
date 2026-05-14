@@ -47,8 +47,8 @@ function formatWindowHeader(start: string, end: string, index: number): string {
 
 function dailyTotalTag(total: number): { className: string; label: string } {
     if (total >= 120) return { className: "tag is-danger", label: `${total} DKK · cap reached` };
-    if (total > 0)    return { className: "tag is-warning", label: `${total} DKK` };
-    return             { className: "tag is-light", label: `${total} DKK` };
+    if (total > 0) return { className: "tag is-warning", label: `${total} DKK` };
+    return { className: "tag is-light", label: `${total} DKK` };
 }
 
 function chargeTag(ann: PassageAnnotation | undefined, baseFee: number): { className: string; label: string } {
@@ -142,13 +142,13 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                 </thead>
                 <tbody>
                     {Array.from(groups.entries()).map(([vehicleId, vPassages]) => {
-                        const sorted      = sortByTime(vPassages);
-                        const last        = sorted[sorted.length - 1];
-                        const isExpanded  = expanded.has(vehicleId);
+                        const sorted = sortByTime(vPassages);
+                        const last = sorted[sorted.length - 1];
+                        const isExpanded = expanded.has(vehicleId);
                         const annotations = annotatePassages(last.vehicleType, sorted.map((p) => ({ id: p.id, timestamp: p.timestamp })));
-                        const dailyTotal  = annotations.filter((a) => a.charged).reduce((sum, a) => sum + a.chargedFee, 0);
-                        const windows     = groupIntoWindows(sorted, annotations);
-                        const totalTag    = dailyTotalTag(dailyTotal);
+                        const dailyTotal = annotations.filter((a) => a.charged).reduce((sum, a) => sum + a.chargedFee, 0);
+                        const windows = groupIntoWindows(sorted, annotations);
+                        const totalTag = dailyTotalTag(dailyTotal);
 
                         return (
                             <Fragment key={vehicleId}>
@@ -171,8 +171,8 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
 
                                 {/* Expanded: one window-header row + passage rows per window */}
                                 {isExpanded && windows.map((group, gi) => {
-                                    const windowTotal   = windowChargedTotal(group);
-                                    const windowLabel   = group.windowStart
+                                    const windowTotal = windowChargedTotal(group);
+                                    const windowLabel = group.windowStart
                                         ? formatWindowHeader(group.windowStart, group.windowEnd!, group.windowIndex ?? gi)
                                         : null;
 
@@ -187,7 +187,7 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                                                 </tr>
                                             )}
                                             {group.items.map(({ passage, ann }) => {
-                                                const tag    = chargeTag(ann, passage.baseFee);
+                                                const tag = chargeTag(ann, passage.baseFee);
                                                 const indent = group.windowStart !== undefined ? "3rem" : "2.5rem";
 
                                                 return (
