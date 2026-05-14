@@ -140,35 +140,132 @@ export interface PassageAnnotation {
     windowIndex?: number;
 }
 
+// ---------------------------------------------------------------------------
+// Private helpers for annotatePassages
+// ---------------------------------------------------------------------------
+
+/** Builds a PassageAnnotation with sensible defaults, spread-overridden by the caller. */
+function makeAnnotation(p: AnnotationInput, overrides: Partial<PassageAnnotation>): PassageAnnotation {
+    return {
+        id: p.id,
+        timestamp: p.timestamp,
+        baseFee: getBaseFee(p.timestamp),
+        charged: false,
+        chargedFee: 0,
+        ...overrides,
+    };
+}
+
+interface WindowData {
+    passages: AnnotationInput[];
+    maxFee: number;
+    triggeringId: string;
+    startISO: string;
+    endISO: string;
+}
+
+/**
+ * Starting at `startIndex`, advances through `dayPassages` until the
+ * 60-minute window closes and returns all collected passages plus the
+ * highest-fee passage id.
+ */
+function collectWindow(dayPassages: AnnotationInput[], startIndex: number): WindowData {
+    const startMs = new Date(dayPassages[startIndex].timestamp).getTime();
+    const endMs = startMs + CHARGE_WINDOW_MINUTES * 60_000;
+
+    let maxFee = 0;
+    let triggeringId = dayPassages[startIndex].id;
+    let j = startIndex;
+
+    for (; j < dayPassages.length && new Date(dayPassages[j].timestamp).getTime() < endMs; j++) {
+        const fee = getBaseFee(dayPassages[j].timestamp);
+        if (fee > maxFee) {
+            maxFee = fee;
+            triggeringId = dayPassages[j].id;
+        }
+    }
+
+    return {
+        passages: dayPassages.slice(startIndex, j),
+        maxFee,
+        triggeringId,
+        startISO: new Date(startMs).toISOString(),
+        endISO: new Date(endMs).toISOString(),
+    };
+}
+
+/**
+ * Produces annotations for every passage in a single rolling window,
+ * applying the daily-cap and rolling-window rules.
+ */
+function annotateWindow(
+    win: WindowData,
+    windowIndex: number,
+    totalFeeSoFar: number
+): { annotations: PassageAnnotation[]; chargedAmount: number } {
+    const windowMeta = { windowStart: win.startISO, windowEnd: win.endISO, windowIndex };
+
+    if (totalFeeSoFar >= DAILY_CAP_DKK) {
+        return {
+            annotations: win.passages.map((p) => makeAnnotation(p, { reason: NotChargedReason.DAILY_CAP_REACHED, ...windowMeta })),
+            chargedAmount: 0,
+        };
+    }
+
+    if (win.maxFee === 0) {
+        return {
+            annotations: win.passages.map((p) => makeAnnotation(p, { reason: NotChargedReason.FEE_IS_ZERO, ...windowMeta })),
+            chargedAmount: 0,
+        };
+    }
+
+    const chargedAmount = Math.min(win.maxFee, DAILY_CAP_DKK - totalFeeSoFar);
+    const annotations = win.passages.map((p) =>
+        p.id === win.triggeringId
+            ? makeAnnotation(p, { charged: true, chargedFee: chargedAmount, ...windowMeta })
+            : makeAnnotation(p, { reason: NotChargedReason.WITHIN_ROLLING_WINDOW, ...windowMeta })
+    );
+
+    return { annotations, chargedAmount };
+}
+
+/** Annotates all passages for a single calendar day. */
+function annotateDay(dayPassages: AnnotationInput[]): PassageAnnotation[] {
+    if (isTollFreeDate(dayPassages[0].timestamp)) {
+        return dayPassages.map((p) => makeAnnotation(p, { reason: NotChargedReason.TOLL_FREE_DATE }));
+    }
+
+    const result: PassageAnnotation[] = [];
+    let totalFee = 0;
+    let windowIdx = 0;
+
+    for (let i = 0; i < dayPassages.length;) {
+        const win = collectWindow(dayPassages, i);
+        const { annotations, chargedAmount } = annotateWindow(win, windowIdx, totalFee);
+        result.push(...annotations);
+        totalFee += chargedAmount;
+        windowIdx++;
+        i += win.passages.length;
+    }
+
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+
 /**
  * Annotates each passage with whether it was charged, how much, and why not
  * if it wasn't. Mirrors calculateDailyToll but returns per-passage detail.
  */
-export function annotatePassages(
-    vehicleType: string,
-    passages: AnnotationInput[]
-): PassageAnnotation[] {
+export function annotatePassages(vehicleType: string, passages: AnnotationInput[]): PassageAnnotation[] {
     const sorted = [...passages].sort(
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
 
-    const vt = vehicleType as VehicleType;
-
-    // Rule 4 – toll-free vehicle: all passages get the same reason
-    if (TOLL_FREE_VEHICLE_TYPES.includes(vt)) {
-        return sorted.map((p) => ({
-            id: p.id,
-            timestamp: p.timestamp,
-            baseFee: getBaseFee(p.timestamp),
-            charged: false,
-            chargedFee: 0,
-            reason: NotChargedReason.TOLL_FREE_VEHICLE,
-        }));
+    if (TOLL_FREE_VEHICLE_TYPES.includes(vehicleType as VehicleType)) {
+        return sorted.map((p) => makeAnnotation(p, { reason: NotChargedReason.TOLL_FREE_VEHICLE }));
     }
 
-    const result: PassageAnnotation[] = [];
-
-    // Group by calendar date so the daily cap resets each day
     const byDate = new Map<string, AnnotationInput[]>();
     for (const p of sorted) {
         const key = toDateKey(p.timestamp);
@@ -176,97 +273,7 @@ export function annotatePassages(
         byDate.get(key)!.push(p);
     }
 
-    for (const dayPassages of byDate.values()) {
-        // Rule 5 – toll-free date
-        if (isTollFreeDate(dayPassages[0].timestamp)) {
-            for (const p of dayPassages) {
-                result.push({
-                    id: p.id,
-                    timestamp: p.timestamp,
-                    baseFee: getBaseFee(p.timestamp),
-                    charged: false,
-                    chargedFee: 0,
-                    reason: NotChargedReason.TOLL_FREE_DATE,
-                });
-            }
-            continue;
-        }
-
-        let totalFee = 0;
-        let windowIdx = 0;
-
-        for (let i = 0; i < dayPassages.length;) {
-            // Rule 2 – compute the window boundaries first so cap-reached passages
-            // are still assigned to their correct window for display purposes.
-            const windowStartMs = new Date(dayPassages[i].timestamp).getTime();
-            const windowEndMs = windowStartMs + CHARGE_WINDOW_MINUTES * 60_000;
-            const windowStartISO = new Date(windowStartMs).toISOString();
-            const windowEndISO = new Date(windowEndMs).toISOString();
-
-            let maxFee = 0;
-            let triggeringId = dayPassages[i].id;
-            let j = i;
-
-            for (; j < dayPassages.length && new Date(dayPassages[j].timestamp).getTime() < windowEndMs; j++) {
-                const fee = getBaseFee(dayPassages[j].timestamp);
-                if (fee > maxFee) {
-                    maxFee = fee;
-                    triggeringId = dayPassages[j].id;
-                }
-            }
-
-            const windowPassages = dayPassages.slice(i, j);
-
-            // Rule 3 – daily cap already reached before this window
-            if (totalFee >= DAILY_CAP_DKK) {
-                for (const p of windowPassages) {
-                    result.push({
-                        id: p.id,
-                        timestamp: p.timestamp,
-                        baseFee: getBaseFee(p.timestamp),
-                        charged: false,
-                        chargedFee: 0,
-                        reason: NotChargedReason.DAILY_CAP_REACHED,
-                        windowStart: windowStartISO,
-                        windowEnd: windowEndISO,
-                        windowIndex: windowIdx,
-                    });
-                }
-            } else if (maxFee === 0) {
-                // All passages in this window fall in a 0-fee band
-                for (const p of windowPassages) {
-                    result.push({
-                        id: p.id,
-                        timestamp: p.timestamp,
-                        baseFee: 0,
-                        charged: false,
-                        chargedFee: 0,
-                        reason: NotChargedReason.FEE_IS_ZERO,
-                        windowStart: windowStartISO,
-                        windowEnd: windowEndISO,
-                        windowIndex: windowIdx,
-                    });
-                }
-            } else {
-                const applicable = Math.min(maxFee, DAILY_CAP_DKK - totalFee);
-                totalFee += applicable;
-
-                for (const p of windowPassages) {
-                    const baseFee = getBaseFee(p.timestamp);
-                    if (p.id === triggeringId) {
-                        result.push({ id: p.id, timestamp: p.timestamp, baseFee, charged: true, chargedFee: applicable, windowStart: windowStartISO, windowEnd: windowEndISO, windowIndex: windowIdx });
-                    } else {
-                        result.push({ id: p.id, timestamp: p.timestamp, baseFee, charged: false, chargedFee: 0, reason: NotChargedReason.WITHIN_ROLLING_WINDOW, windowStart: windowStartISO, windowEnd: windowEndISO, windowIndex: windowIdx });
-                    }
-                }
-            }
-
-            windowIdx++;
-            i = j;
-        }
-    }
-
-    return result;
+    return [...byDate.values()].flatMap(annotateDay);
 }
 
 // ---------------------------------------------------------------------------
