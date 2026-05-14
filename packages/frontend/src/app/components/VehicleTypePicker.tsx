@@ -1,16 +1,25 @@
 "use client";
 
 import { VehicleTypeOption } from "@/types";
+import CarIcon from "./Icons/CarIcon";
+import MotorbikeIcon from "./Icons/MotorbikeIcon";
+import EmergencyIcon from "./Icons/EmergencyIcon";
+import TractorIcon from "./Icons/TractorIcon";
+import DiplomatIcon from "./Icons/DiplomatIcon";
+import MilitaryIcon from "./Icons/MilitaryIcon";
+import ForeignIcon from "./Icons/ForeignIcon";
+import BusIcon from "./Icons/BusIcon";
+import React from "react";
 
-const VEHICLE_ICONS: Record<string, string> = {
-    car: "🚗",
-    motorbike: "🏍️",
-    emergency: "🚑",
-    tractor: "🚜",
-    diplomat: "🎩",
-    military: "🪖",
-    foreign: "🌍",
-    bus: "🚌",
+const VEHICLE_ICONS: Record<string, any> = {
+    car: CarIcon,
+    motorbike: MotorbikeIcon,
+    emergency: EmergencyIcon,
+    tractor: TractorIcon,
+    diplomat: DiplomatIcon,
+    military: MilitaryIcon,
+    foreign: ForeignIcon,
+    bus: BusIcon,
 };
 
 interface Props {
@@ -39,9 +48,7 @@ export function VehicleTypePicker({ vehicleTypes, onSelect }: Props) {
                         onClick={() => onSelect(vt.vehicleType)}
                         title={`Add ${vt.vehicleType} passage`}
                     >
-                        <span style={{ fontSize: "2rem", lineHeight: 1 }}>
-                            {VEHICLE_ICONS[vt.vehicleType] ?? "🚘"}
-                        </span>
+                        {React.createElement(VEHICLE_ICONS[vt.vehicleType])}
                         <span className="is-size-7 mt-2" style={{ textTransform: "capitalize" }}>
                             {vt.vehicleType}
                         </span>
