@@ -1,6 +1,6 @@
 export default function DiplomatIcon() {
     return (
-        <svg fill="#000000" height="24px" width="24px" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg"
+        <svg fill="#000000" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 418.399 418.399">
             <path d="M220.33,315.354l-11.949-64.514c-6.18-33.363-39.055-48.297-68.894-48.296c-29.837,0-62.71,14.934-68.889,48.296
             l-21.38,115.412l129.36-0.003c5.523,0,10,4.477,10,10c0,5.522-4.477,10-10,10l-141.383,0.003c-2.971,0-5.788-1.321-7.688-3.605

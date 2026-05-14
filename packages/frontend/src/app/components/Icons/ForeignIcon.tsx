@@ -1,6 +1,6 @@
 export default function ForeignIcon() {
     return (
-        <svg fill="#000000" height="24px" width="24px" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg"
+        <svg fill="#000000" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 297 297">
             <g>
                 <path d="M238.192,32.616h-7.412V9.884c0-2.963-1.329-5.769-3.622-7.648c-2.293-1.877-5.307-2.627-8.211-2.042L56.857,32.81
