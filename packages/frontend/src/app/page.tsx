@@ -1,23 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  createPassage,
-  deletePassage,
-  fetchPassages,
-  fetchVehicleTypes,
-} from "@/lib/api";
-import { CreatePassagePayload, Passage, VehicleTypeOption } from "@/types";
+import { createPassage, deletePassage, fetchPassages, fetchVehicleTypes } from "@/lib/api";
+import { Passage, VehicleTypeOption } from "@/types";
+import { PassagesTable } from "./components/PassagesTable";
+import { VehicleTypePicker } from "./components/VehicleTypePicker";
 import { AddPassageModal } from "./components/AddPassageModal";
 
 export default function HomePage() {
   const [passages, setPassages] = useState<Passage[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleTypeOption[]>([]);
-  const [vehicleId, setVehicleId] = useState("");
-  const [vehicleType, setVehicleType] = useState("");
-  const [timestamp, setTimestamp] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [loadingPassages, setLoadingPassages] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [preselectedType, setPreselectedType] = useState<string | undefined>();
 
   const loadPassages = async () => {
     setLoadingPassages(true);
