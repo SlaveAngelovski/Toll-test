@@ -4,12 +4,91 @@ import { Fragment, useMemo, useState } from "react";
 import { Passage } from "@/types";
 import { annotatePassages, PassageAnnotation } from "@/passageBusiness/passagesLogic";
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface WindowGroup {
+    windowStart: string | undefined;
+    windowEnd: string | undefined;
+    windowIndex: number | undefined;
+    items: Array<{ passage: Passage; ann: PassageAnnotation | undefined }>;
+}
+
 interface Props {
     passages: Passage[];
     loading: boolean;
     onDelete: (id: string) => void;
     onAdd: () => void;
 }
+
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
+
+function formatDateTime(iso: string): string {
+    return new Date(iso).toLocaleString([], { hour12: false });
+}
+
+function formatTime(iso: string): string {
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function formatWindowHeader(start: string, end: string, index: number): string {
+    const startLabel = new Date(start).toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    });
+    return `Window ${index + 1}: ${startLabel} – ${formatTime(end)}`;
+}
+
+function dailyTotalTag(total: number): { className: string; label: string } {
+    if (total >= 120) return { className: "tag is-danger", label: `${total} DKK · cap reached` };
+    if (total > 0)    return { className: "tag is-warning", label: `${total} DKK` };
+    return             { className: "tag is-light", label: `${total} DKK` };
+}
+
+function chargeTag(ann: PassageAnnotation | undefined, baseFee: number): { className: string; label: string } {
+    if (ann?.charged) return { className: "tag is-success is-light", label: `Charged ${ann.chargedFee} DKK` };
+    return { className: "tag is-light", label: ann?.reason ?? "Not charged" };
+}
+
+function windowChargedTotal(group: WindowGroup): number {
+    return group.items.reduce((sum, { ann }) => sum + (ann?.chargedFee ?? 0), 0);
+}
+
+// ---------------------------------------------------------------------------
+// Data helpers
+// ---------------------------------------------------------------------------
+
+function sortByTime(passages: Passage[]): Passage[] {
+    return [...passages].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+function groupIntoWindows(sorted: Passage[], annotations: PassageAnnotation[]): WindowGroup[] {
+    const annMap = new Map(annotations.map((a) => [a.id, a]));
+    const groups: WindowGroup[] = [];
+    const seenWindows = new Map<string | undefined, number>();
+
+    for (const passage of sorted) {
+        const ann = annMap.get(passage.id);
+        const key = ann?.windowStart;
+        if (!seenWindows.has(key)) {
+            seenWindows.set(key, groups.length);
+            groups.push({ windowStart: ann?.windowStart, windowEnd: ann?.windowEnd, windowIndex: ann?.windowIndex, items: [] });
+        }
+        groups[seenWindows.get(key)!].items.push({ passage, ann });
+    }
+
+    return groups;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -63,61 +142,22 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                 </thead>
                 <tbody>
                     {Array.from(groups.entries()).map(([vehicleId, vPassages]) => {
-                        const sorted = [...vPassages].sort(
-                            (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-                        );
-                        const last = sorted[sorted.length - 1];
-                        const isExpanded = expanded.has(vehicleId);
-
-                        const annotations = annotatePassages(
-                            last.vehicleType,
-                            sorted.map((p) => ({ id: p.id, timestamp: p.timestamp }))
-                        );
-
-                        const dailyTotal = annotations
-                            .filter((a) => a.charged)
-                            .reduce((sum, a) => sum + a.chargedFee, 0);
-
-                        const annMap = new Map(annotations.map((a) => [a.id, a]));
-
-                        // Group sorted passages into rolling windows for the expanded view.
-                        const windowGroups: Array<{
-                            windowStart: string | undefined;
-                            windowEnd: string | undefined;
-                            windowIndex: number | undefined;
-                            items: Array<{ passage: Passage; ann: PassageAnnotation | undefined }>;
-                        }> = [];
-                        const seenWindows = new Map<string | undefined, number>();
-                        for (const passage of sorted) {
-                            const ann = annMap.get(passage.id);
-                            const key = ann?.windowStart;
-                            if (!seenWindows.has(key)) {
-                                seenWindows.set(key, windowGroups.length);
-                                windowGroups.push({ windowStart: ann?.windowStart, windowEnd: ann?.windowEnd, windowIndex: ann?.windowIndex, items: [] });
-                            }
-                            windowGroups[seenWindows.get(key)!].items.push({ passage, ann });
-                        }
+                        const sorted      = sortByTime(vPassages);
+                        const last        = sorted[sorted.length - 1];
+                        const isExpanded  = expanded.has(vehicleId);
+                        const annotations = annotatePassages(last.vehicleType, sorted.map((p) => ({ id: p.id, timestamp: p.timestamp })));
+                        const dailyTotal  = annotations.filter((a) => a.charged).reduce((sum, a) => sum + a.chargedFee, 0);
+                        const windows     = groupIntoWindows(sorted, annotations);
+                        const totalTag    = dailyTotalTag(dailyTotal);
 
                         return (
                             <Fragment key={vehicleId}>
+                                {/* Summary row */}
                                 <tr>
-                                    <td>
-                                        <strong>{vehicleId}</strong>
-                                    </td>
+                                    <td><strong>{vehicleId}</strong></td>
                                     <td>{last.vehicleType}</td>
-                                    <td>{new Date(last.timestamp).toLocaleString()}</td>
-                                    <td>
-                                        <span
-                                            className={`tag ${dailyTotal >= 120
-                                                ? "is-danger"
-                                                : dailyTotal > 0
-                                                    ? "is-warning"
-                                                    : "is-light"
-                                                }`}
-                                        >
-                                            {dailyTotal} DKK{dailyTotal >= 120 ? " · cap reached" : ""}
-                                        </span>
-                                    </td>
+                                    <td>{formatDateTime(last.timestamp)}</td>
+                                    <td><span className={totalTag.className}>{totalTag.label}</span></td>
                                     <td>
                                         <button
                                             className="button is-small is-light"
@@ -129,70 +169,45 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                                     </td>
                                 </tr>
 
-                                {isExpanded &&
-                                    windowGroups.map((group, gi) => (
+                                {/* Expanded: one window-header row + passage rows per window */}
+                                {isExpanded && windows.map((group, gi) => {
+                                    const windowTotal   = windowChargedTotal(group);
+                                    const windowLabel   = group.windowStart
+                                        ? formatWindowHeader(group.windowStart, group.windowEnd!, group.windowIndex ?? gi)
+                                        : null;
+
+                                    return (
                                         <Fragment key={group.windowStart ?? `no-window-${gi}`}>
-                                            {group.windowStart !== undefined && (
+                                            {windowLabel && (
                                                 <tr style={{ backgroundColor: "#dbeafe" }}>
-                                                    <td
-                                                        colSpan={5}
-                                                        style={{ paddingLeft: "1.5rem", fontSize: "0.85em", borderTop: "2px solid #bfdbfe" }}
-                                                    >
-                                                        <strong>Window {(group.windowIndex ?? gi) + 1}</strong>
-                                                        {": "}
-                                                        {new Date(group.windowStart).toLocaleString([], {
-                                                            month: "short",
-                                                            day: "numeric",
-                                                            hour: "2-digit",
-                                                            minute: "2-digit",
-                                                        })}
-                                                        {" – "}
-                                                        {new Date(group.windowEnd!).toLocaleTimeString([], {
-                                                            hour: "2-digit",
-                                                            minute: "2-digit",
-                                                        })}
-                                                        {group.items.some(({ ann }) => ann?.charged) && (
-                                                            <span className="tag is-info is-light ml-2">
-                                                                {group.items.reduce((s, { ann }) => s + (ann?.chargedFee ?? 0), 0)} DKK
-                                                            </span>
-                                                        )}
+                                                    <td colSpan={5} style={{ paddingLeft: "1.5rem", fontSize: "0.85em", borderTop: "2px solid #bfdbfe" }}>
+                                                        <strong>{windowLabel}</strong>
+                                                        {windowTotal > 0 && <span className="tag is-info is-light ml-2">{windowTotal} DKK</span>}
                                                     </td>
                                                 </tr>
                                             )}
-                                            {group.items.map(({ passage, ann }) => (
-                                                <tr key={passage.id} style={{ backgroundColor: "#f8f9fa" }}>
-                                                    <td
-                                                        colSpan={2}
-                                                        style={{ paddingLeft: group.windowStart !== undefined ? "3rem" : "2.5rem", color: "#555", fontSize: "0.9em" }}
-                                                    >
-                                                        ↳ {new Date(passage.timestamp).toLocaleString()}
-                                                    </td>
-                                                    <td style={{ fontSize: "0.9em" }}>
-                                                        Base: {ann?.baseFee ?? passage.baseFee} DKK
-                                                    </td>
-                                                    <td>
-                                                        {ann?.charged ? (
-                                                            <span className="tag is-success is-light">
-                                                                Charged {ann.chargedFee} DKK
-                                                            </span>
-                                                        ) : (
-                                                            <span className="tag is-light" title={ann?.reason}>
-                                                                {ann?.reason ?? "Not charged"}
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        <button
-                                                            className="button is-danger is-small is-outlined"
-                                                            onClick={() => onDelete(passage.id)}
-                                                        >
-                                                            Delete
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {group.items.map(({ passage, ann }) => {
+                                                const tag    = chargeTag(ann, passage.baseFee);
+                                                const indent = group.windowStart !== undefined ? "3rem" : "2.5rem";
+
+                                                return (
+                                                    <tr key={passage.id} style={{ backgroundColor: "#f8f9fa" }}>
+                                                        <td colSpan={2} style={{ paddingLeft: indent, color: "#555", fontSize: "0.9em" }}>
+                                                            ↳ {formatDateTime(passage.timestamp)}
+                                                        </td>
+                                                        <td style={{ fontSize: "0.9em" }}>Base: {ann?.baseFee ?? passage.baseFee} DKK</td>
+                                                        <td><span className={tag.className} title={ann?.reason}>{tag.label}</span></td>
+                                                        <td>
+                                                            <button className="button is-danger is-small is-outlined" onClick={() => onDelete(passage.id)}>
+                                                                Delete
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </Fragment>
-                                    ))}
+                                    );
+                                })}
                             </Fragment>
                         );
                     })}
