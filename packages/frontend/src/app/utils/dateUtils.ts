@@ -1,46 +1,36 @@
 import { PUBLIC_HOLIDAYS_2025, PUBLIC_HOLIDAYS_2026, TOLL_FREE_WEEKDAYS } from "../../passageBusiness/passagesRules";
 
+const TIME_ZONE = "Europe/Copenhagen";
+
+/** Converts a UTC Date to its equivalent Copenhagen wall-clock time. */
+function toCopenhagenTime(date: Date): Date {
+    const locale = date.toLocaleString("en-US", { timeZone: TIME_ZONE });
+    return new Date(locale);
+}
+
 /** Converts an "HH:MM" time string to total minutes since midnight. */
 export function timeToMinutes(time: string): number {
     const [hours, minutes] = time.split(":").map(Number);
     return hours * 60 + minutes;
 }
 
-/**
- * Extracts the local wall-clock time in minutes since midnight from an ISO-8601
- * timestamp. Uses the timestamp's own UTC offset (e.g. +02:00) so the result
- * is never affected by the runtime's system timezone.
- * Falls back to UTC when no offset is present.
- */
+/** Returns Copenhagen wall-clock time in minutes since midnight. */
 export function localMinutesSinceMidnight(timestamp: string): number {
-    const date = new Date(timestamp);
-    const utcMinutes = date.getUTCHours() * 60 + date.getUTCMinutes();
-
-    // Offset is always the last 6 chars: "+02:00" or "-05:30". No offset → use UTC.
-    const sign = timestamp.at(-6);
-    if (sign !== "+" && sign !== "-") return utcMinutes;
-
-    const offsetHours = Number(timestamp.slice(-5, -3));
-    const offsetMins = Number(timestamp.slice(-2));
-    const offsetMinutes = (sign === "+" ? 1 : -1) * (offsetHours * 60 + offsetMins);
-    return (utcMinutes + offsetMinutes + 1440) % 1440;
+    const zoned = toCopenhagenTime(new Date(timestamp));
+    return zoned.getHours() * 60 + zoned.getMinutes();
 }
 
-/**
- * Returns true if the date encoded in the ISO-8601 timestamp falls on a
- * toll-free weekday (Saturday or Sunday, ISO Mon=1…Sun=7).
- */
+/** Returns true if the Copenhagen date falls on a toll-free weekday (Sat or Sun). */
 export function isTollFreeWeekday(date: Date): boolean {
-    const iso = date.getDay() === 0 ? 7 : date.getDay();
+    const zoned = toCopenhagenTime(date);
+    const iso = zoned.getDay() === 0 ? 7 : zoned.getDay();
     return TOLL_FREE_WEEKDAYS.includes(iso);
 }
 
-/**
- * Returns true if the calendar date of the timestamp matches any entry in
- * the provided holiday list (DD/MM/YYYY format).
- */
+/** Returns true if the Copenhagen calendar date matches a public holiday. */
 export function isTollFreeHoliday(date: Date): boolean {
-    const isoToSlash = date.toLocaleDateString("en-GB", {
+    const zoned = toCopenhagenTime(date);
+    const isoToSlash = zoned.toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -57,7 +47,11 @@ export function isTollFreeDate(timestamp: string): boolean {
     return isTollFreeWeekday(date) || isTollFreeHoliday(date);
 }
 
-/** Extracts "YYYY-MM-DD" from an ISO-8601 timestamp using its UTC date. */
+/** Extracts "YYYY-MM-DD" for the Copenhagen calendar date of the timestamp. */
 export function toDateKey(timestamp: string): string {
-    return new Date(timestamp).toISOString().slice(0, 10);
+    const zoned = toCopenhagenTime(new Date(timestamp));
+    const y = zoned.getFullYear();
+    const m = String(zoned.getMonth() + 1).padStart(2, "0");
+    const d = String(zoned.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
 }
