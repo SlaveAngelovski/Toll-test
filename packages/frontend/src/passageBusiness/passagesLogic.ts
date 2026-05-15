@@ -29,6 +29,7 @@ export enum NotChargedReason {
     FEE_IS_ZERO = "fee is zero",
     DAILY_CAP_REACHED = "daily cap reached",
     DATE_PARSE_ERROR = "date parse error",
+    VEHICLE_TYPE_UNKNOWN = "vehicle type unknown",
 }
 
 export interface AnnotationInput {
@@ -198,7 +199,15 @@ function groupByDate(passages: AnnotationInput[]): AnnotationInput[][] {
  */
 export function annotatePassages(vehicleType: string, passages: AnnotationInput[]): PassageAnnotation[] {
     if (!vehicleType) {
-        return passages.map((p) => makeAnnotation(p, { reason: NotChargedReason.DATE_PARSE_ERROR }));
+        return passages.map((p) => makeAnnotation(p, { reason: NotChargedReason.VEHICLE_TYPE_UNKNOWN }));
+    }
+    // reject if date is unparseable, but keep track of them to report as annotations (instead of silently dropping)
+    if (passages.some((p) => isNaN(Date.parse(p.timestamp)))) {
+        return passages.map((p) =>
+            isNaN(Date.parse(p.timestamp))
+                ? makeAnnotation(p, { reason: NotChargedReason.DATE_PARSE_ERROR })
+                : makeAnnotation(p, { reason: NotChargedReason.DATE_PARSE_ERROR })
+        );
     }
 
     const { valid, invalid } = passages.reduce<{ valid: AnnotationInput[]; invalid: AnnotationInput[] }>(
