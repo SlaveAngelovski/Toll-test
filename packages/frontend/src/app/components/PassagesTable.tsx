@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Passage } from "@/types";
 import { annotatePassages, PassageAnnotation } from "@/passageBusiness/passagesLogic";
-import { formatDateTime, formatTime } from "../utils/dateUtils";
+import { formatDateTime, formatTime, toDateKey } from "../utils/dateUtils";
 
 type WindowGroup = {
     windowStart: string | undefined;
@@ -20,6 +20,10 @@ type Props = {
 }
 
 
+
+function formatDate(iso: string): string {
+    return new Date(iso).toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" });
+}
 
 function formatWindowHeader(start: string, end: string, index: number): string {
     const startLabel = formatDateTime(start);
@@ -48,11 +52,13 @@ function sortByTime(passages: Passage[]): Passage[] {
 function groupIntoWindows(sorted: Passage[], annotations: PassageAnnotation[]): WindowGroup[] {
     const annMap = new Map(annotations.map((a) => [a.id, a]));
     const groups: WindowGroup[] = [];
-    const seenWindows = new Map<string | undefined, number>();
+    const seenWindows = new Map<string, number>();
 
     for (const passage of sorted) {
         const ann = annMap.get(passage.id);
-        const key = ann?.windowStart;
+        // Passages without a window (toll-free day/vehicle) fall back to their calendar
+        // date so that different days never share the same group.
+        const key = ann?.windowStart ?? toDateKey(passage.timestamp);
         if (!seenWindows.has(key)) {
             seenWindows.set(key, groups.length);
             groups.push({ windowStart: ann?.windowStart, windowEnd: ann?.windowEnd, windowIndex: ann?.windowIndex, items: [] });
@@ -70,6 +76,16 @@ function groupByVehicleId(passages: Passage[]): Map<string, Passage[]> {
         map.get(p.vehicleId)!.push(p);
     }
     return map;
+}
+
+/** Groups annotations by calendar day and returns the charged total for each day. */
+function perDayTotals(annotations: PassageAnnotation[]): { dateKey: string; total: number }[] {
+    const byDay = new Map<string, number>();
+    for (const ann of annotations) {
+        const key = toDateKey(ann.timestamp);
+        byDay.set(key, (byDay.get(key) ?? 0) + ann.chargedFee);
+    }
+    return Array.from(byDay.entries()).map(([dateKey, total]) => ({ dateKey, total }));
 }
 
 export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
@@ -122,9 +138,8 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                         const last = sorted[sorted.length - 1];
                         const isExpanded = expanded.has(vehicleId);
                         const annotations = annotatePassages(last.vehicleType, sorted.map((p) => ({ id: p.id, timestamp: p.timestamp })));
-                        const dailyTotal = annotations.filter((a) => a.charged).reduce((sum, a) => sum + a.chargedFee, 0);
+                        const dayTotals = perDayTotals(annotations);
                         const windows = groupIntoWindows(sorted, annotations);
-                        const totalTag = dailyTotalTag(dailyTotal);
 
                         return (
                             <Fragment key={vehicleId}>
@@ -134,7 +149,10 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                                     <td>{last.vehicleType}</td>
                                     <td>{formatDateTime(last.timestamp)}</td>
                                     <td>
-                                        <span className={totalTag.className}>{totalTag.label}</span>
+                                        {dayTotals.map(({ dateKey, total }) => {
+                                            const tag = dailyTotalTag(total);
+                                            return <span key={dateKey} className={tag.className}>{tag.label}</span>;
+                                        })}
                                     </td>
                                     <td>
                                         <button
@@ -153,6 +171,10 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                                     const windowLabel = group.windowStart
                                         ? formatWindowHeader(group.windowStart, group.windowEnd!, group.windowIndex ?? gi)
                                         : null;
+                                    // Toll-free groups have no windowStart — show a plain date header instead
+                                    const dateLabel = !windowLabel && group.items.length > 0
+                                        ? formatDate(group.items[0].passage.timestamp)
+                                        : null;
 
                                     return (
                                         <Fragment key={group.windowStart ?? `no-window-${gi}`}>
@@ -163,6 +185,13 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                                                     </td>
                                                     <td colSpan={2}>
                                                         <span>{<span className="tag is-warning">{windowTotal} DKK</span>}</span>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            {dateLabel && (
+                                                <tr className="expandedRowWindow">
+                                                    <td colSpan={5} className="has-text-weight-medium pl-5">
+                                                        <span className="is-small is-size-7">{dateLabel} · toll-free</span>
                                                     </td>
                                                 </tr>
                                             )}
