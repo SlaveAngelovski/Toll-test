@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { createPassage, deletePassage, fetchPassages, fetchVehicleTypes } from "@/lib/api";
-import { Passage, VehicleTypeOption } from "@/types";
+import { Passage, VehicleType, VehicleTypeOption } from "@/types";
 import { PassagesTable } from "./components/PassagesTable";
 import { VehicleTypePicker } from "./components/VehicleTypePicker";
 import { AddPassageModal } from "./components/AddPassageModal";
+import { ErrorModal } from "./components/ErrorModal";
 
 export default function HomePage() {
   const [passages, setPassages] = useState<Passage[]>([]);
@@ -13,12 +14,18 @@ export default function HomePage() {
   const [loadingPassages, setLoadingPassages] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [preselectedType, setPreselectedType] = useState<string | undefined>();
+  const [error, setError] = useState<string | null>(null);
 
   const loadPassages = async () => {
     setLoadingPassages(true);
-    const data = await fetchPassages();
-    setPassages(data);
-    setLoadingPassages(false);
+    try {
+      const data = await fetchPassages();
+      setPassages(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load passages.");
+    } finally {
+      setLoadingPassages(false);
+    }
   };
 
   useEffect(() => {
@@ -27,14 +34,22 @@ export default function HomePage() {
   }, []);
 
   const handleAdd = async (vehicleId: string, vehicleType: string, timestamp: string) => {
-    await createPassage({ vehicleId, vehicleType, timestamp });
-    setModalOpen(false);
-    await loadPassages();
+    try {
+      await createPassage({ vehicleId, vehicleType: vehicleType as VehicleType, timestamp });
+      setModalOpen(false);
+      await loadPassages();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to add passage.");
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await deletePassage(id);
-    await loadPassages();
+    try {
+      await deletePassage(id);
+      await loadPassages();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete passage.");
+    }
   };
 
   const openModal = (type?: string) => {
@@ -71,6 +86,10 @@ export default function HomePage() {
             onClose={() => setModalOpen(false)}
             onAdd={handleAdd}
           />
+        )}
+
+        {error && (
+          <ErrorModal message={error} onClose={() => setError(null)} />
         )}
       </div>
     </main>
