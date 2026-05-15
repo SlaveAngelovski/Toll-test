@@ -30,12 +30,21 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 async function handleFormatErrors<D>(res: Response): Promise<D> {
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`API error: ${res.status} ${res.statusText} - ${errorText}`);
-  } else {
-    return res.json() as Promise<D>;
+  if (!res.ok && res.status !== 200) {
+    const body = await res.json();
+    const errors = body?.errors;
+
+    // Zod validation error shape: { formErrors: string[], fieldErrors: Record<string, string[]> }
+    if (errors?.fieldErrors || errors?.formErrors) {
+      const fieldMessages = Object.entries(errors.fieldErrors ?? {})
+        .flatMap(([field, msgs]) => (msgs as string[]).map((m) => `${field}: ${m}`));
+      const allMessages = [...(errors.formErrors ?? []), ...fieldMessages];
+      throw new Error(allMessages.join("\n") || "Validation error");
+    }
+
+    throw new Error(body?.error ?? body?.message ?? `${res.status} ${res.statusText}`);
   }
+  return res.json() as Promise<D>;
 }
 
 
