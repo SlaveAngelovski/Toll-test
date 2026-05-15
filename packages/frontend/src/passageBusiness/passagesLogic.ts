@@ -1,13 +1,6 @@
 import { VehicleType } from "@/types";
-import {
-    CHARGE_WINDOW_MINUTES,
-    DAILY_CAP_DKK,
-    FEE_SCHEDULE,
-    PUBLIC_HOLIDAYS_2025,
-    PUBLIC_HOLIDAYS_2026,
-    TOLL_FREE_VEHICLE_TYPES,
-    TOLL_FREE_WEEKDAYS,
-} from "./passagesRules";
+import { CHARGE_WINDOW_MINUTES, DAILY_CAP_DKK, FEE_SCHEDULE, TOLL_FREE_VEHICLE_TYPES } from "./passagesRules";
+import { isTollFreeDate, localMinutesSinceMidnight, timeToMinutes, toDateKey } from "../app/utils/dateUtils";
 
 export interface DailyTollRequest {
     vehicleType: string;
@@ -66,30 +59,6 @@ type WindowData = {
     endISO: string;
 }
 
-/** Converts an "HH:MM" time string to total minutes since midnight. */
-function timeToMinutes(time: string): number {
-    const [hours, minutes] = time.split(":").map(Number);
-    return hours * 60 + minutes;
-}
-
-/**
- * Extracts the local wall-clock time in minutes since midnight from an ISO-8601
- * timestamp. Uses the timestamp's own UTC offset (e.g. +02:00) so the result
- * is never affected by the runtime's system timezone.
- * Falls back to UTC when no offset is present.
- */
-function localMinutesSinceMidnight(timestamp: string): number {
-    const date = new Date(timestamp);
-    const utcMinutes = date.getUTCHours() * 60 + date.getUTCMinutes();
-
-    const offsetMatch = timestamp.match(/([+-])(\d{2}):(\d{2})$/);
-    if (!offsetMatch) return utcMinutes;
-
-    const sign = offsetMatch[1] === "+" ? 1 : -1;
-    const offsetMinutes = sign * (Number(offsetMatch[2]) * 60 + Number(offsetMatch[3]));
-    return ((utcMinutes + offsetMinutes) % 1440 + 1440) % 1440;
-}
-
 /** Returns the toll fee in DKK for the local time encoded in the timestamp. */
 export function getBaseFee(timestamp: string): number {
     const localMinutes = localMinutesSinceMidnight(timestamp);
@@ -97,43 +66,6 @@ export function getBaseFee(timestamp: string): number {
         (e) => localMinutes >= timeToMinutes(e.from) && localMinutes <= timeToMinutes(e.to)
     );
     return entry?.feeDkk ?? 0;
-}
-
-/**
- * Returns true if the date encoded in the ISO-8601 timestamp falls on a
- * toll-free weekday (Saturday or Sunday, ISO Mon=1…Sun=7).
- */
-function isTollFreeWeekday(date: Date): boolean {
-    const iso = date.getDay() === 0 ? 7 : date.getDay();
-
-    return TOLL_FREE_WEEKDAYS.includes(iso);
-}
-
-/**
- * Returns true if the calendar date of the timestamp matches any entry in
- * the provided holiday list (DD/MM/YYYY format).
- */
-function isTollFreeHoliday(date: Date): boolean {
-    const isoToSlash = date.toLocaleDateString('en-GB',
-        { day: '2-digit', month: '2-digit', year: 'numeric' }
-    );
-
-    const holidays2025 = PUBLIC_HOLIDAYS_2025.some((h) => h.date === isoToSlash);
-    const holidays2026 = PUBLIC_HOLIDAYS_2026.some((h) => h.date === isoToSlash);
-
-    return holidays2025 || holidays2026;
-}
-
-/** Returns true if no toll should be charged for this timestamp. */
-function isTollFreeDate(timestamp: string): boolean {
-    const date = new Date(timestamp);
-
-    return isTollFreeWeekday(date) || isTollFreeHoliday(date);
-}
-
-/** Extract "YYYY-MM-DD" from an ISO-8601 timestamp using its UTC date. */
-function toDateKey(timestamp: string): string {
-    return new Date(timestamp).toISOString().slice(0, 10);
 }
 
 /** Builds a PassageAnnotation with sensible defaults, spread-overridden by the caller. */
