@@ -28,6 +28,7 @@ export enum NotChargedReason {
     WITHIN_ROLLING_WINDOW = "within rolling window",
     FEE_IS_ZERO = "fee is zero",
     DAILY_CAP_REACHED = "daily cap reached",
+    DATE_PARSE_ERROR = "date parse error",
 }
 
 export interface AnnotationInput {
@@ -191,15 +192,33 @@ function groupByDate(passages: AnnotationInput[]): AnnotationInput[][] {
 /**
  * Annotates each passage with whether it was charged, how much, and why not
  * if it wasn't. Mirrors calculateDailyToll but returns per-passage detail.
+ *
+ * Passages with unparseable timestamps and all passages when vehicleType is
+ * missing are annotated with DATE_PARSE_ERROR instead of being silently dropped.
  */
 export function annotatePassages(vehicleType: string, passages: AnnotationInput[]): PassageAnnotation[] {
-    const sorted = sortByTimestamp(passages);
-
-    if (TOLL_FREE_VEHICLE_TYPES.includes(vehicleType as VehicleType)) {
-        return sorted.map((p) => makeAnnotation(p, { reason: NotChargedReason.TOLL_FREE_VEHICLE }));
+    if (!vehicleType) {
+        return passages.map((p) => makeAnnotation(p, { reason: NotChargedReason.DATE_PARSE_ERROR }));
     }
 
-    return groupByDate(sorted).flatMap(annotateDay);
+    const { valid, invalid } = passages.reduce<{ valid: AnnotationInput[]; invalid: AnnotationInput[] }>(
+        (acc, p) => {
+            (isNaN(Date.parse(p.timestamp)) ? acc.invalid : acc.valid).push(p);
+            return acc;
+        },
+        { valid: [], invalid: [] }
+    );
+
+    const errorAnnotations = invalid.map((p) => makeAnnotation(p, { reason: NotChargedReason.DATE_PARSE_ERROR }));
+
+    if (valid.length === 0) return errorAnnotations;
+
+    const sorted = sortByTimestamp(valid);
+    const validAnnotations = TOLL_FREE_VEHICLE_TYPES.includes(vehicleType as VehicleType)
+        ? sorted.map((p) => makeAnnotation(p, { reason: NotChargedReason.TOLL_FREE_VEHICLE }))
+        : groupByDate(sorted).flatMap(annotateDay);
+
+    return [...errorAnnotations, ...validAnnotations];
 }
 
 /**
