@@ -1,25 +1,17 @@
+import { VehicleType } from "@/types";
 import {
     CHARGE_WINDOW_MINUTES,
     DAILY_CAP_DKK,
     FEE_SCHEDULE,
     PUBLIC_HOLIDAYS_2025,
+    PUBLIC_HOLIDAYS_2026,
     TOLL_FREE_VEHICLE_TYPES,
     TOLL_FREE_WEEKDAYS,
-    VehicleType,
 } from "./passagesRules";
-
-// ---------------------------------------------------------------------------
-// Public types (assignment request / response shapes)
-// ---------------------------------------------------------------------------
-
-export interface PassageEvent {
-    /** ISO-8601 string that must include a timezone offset, e.g. "2025-04-07T07:30:00+02:00". */
-    timestamp: string;
-}
 
 export interface DailyTollRequest {
     vehicleType: string;
-    passages: PassageEvent[];
+    passages: string[];
 }
 
 export interface ChargedPassage {
@@ -36,81 +28,6 @@ export interface DailyTollResponse {
     notes?: string[];
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Convert an "HH:MM" string to total minutes from midnight. */
-function hhmm(time: string): number {
-    const [h, m] = time.split(":").map(Number);
-    return h * 60 + m;
-}
-
-/**
- * Look up the base fee for a timestamp using the FEE_SCHEDULE.
- * Evaluation uses the local wall-clock time encoded in the ISO-8601 offset.
- */
-export function getBaseFee(timestamp: string): number {
-    const date = new Date(timestamp);
-
-    // Extract local HH:MM from the timestamp's own offset so we never
-    // silently collapse to the runtime's system timezone.
-    const offsetMatch = timestamp.match(/([+-])(\d{2}):(\d{2})$/);
-    let localMinutes: number;
-
-    if (offsetMatch) {
-        const sign = offsetMatch[1] === "+" ? 1 : -1;
-        const offsetMinutes = sign * (Number(offsetMatch[2]) * 60 + Number(offsetMatch[3]));
-        const utcMinutes = date.getUTCHours() * 60 + date.getUTCMinutes();
-        localMinutes = ((utcMinutes + offsetMinutes) % 1440 + 1440) % 1440;
-    } else {
-        // Fallback: treat as UTC
-        localMinutes = date.getUTCHours() * 60 + date.getUTCMinutes();
-    }
-
-    const entry = FEE_SCHEDULE.find(
-        (e) => localMinutes >= hhmm(e.from) && localMinutes <= hhmm(e.to)
-    );
-    return entry?.feeDkk ?? 0;
-}
-
-/**
- * Returns true if the date encoded in the ISO-8601 timestamp falls on a
- * toll-free weekday (Saturday or Sunday, ISO Mon=1…Sun=7).
- */
-function isTollFreeWeekday(timestamp: string): boolean {
-    const date = new Date(timestamp);
-    // getDay() returns 0=Sun … 6=Sat; convert to ISO 1=Mon … 7=Sun
-    const iso = date.getDay() === 0 ? 7 : date.getDay();
-    return (TOLL_FREE_WEEKDAYS as readonly number[]).includes(iso);
-}
-
-/**
- * Returns true if the calendar date of the timestamp matches any entry in
- * the provided holiday list (DD/MM/YYYY format).
- */
-function isTollFreeHoliday(timestamp: string): boolean {
-    const date = new Date(timestamp);
-    const dd = String(date.getDate()).padStart(2, "0");
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const yyyy = String(date.getFullYear());
-    const key = `${dd}/${mm}/${yyyy}`;
-    return PUBLIC_HOLIDAYS_2025.some((h) => h.date === key);
-}
-
-/** Returns true if no toll should be charged for this timestamp. */
-function isTollFreeDate(timestamp: string): boolean {
-    return isTollFreeWeekday(timestamp) || isTollFreeHoliday(timestamp);
-}
-
-/** Extract "YYYY-MM-DD" from an ISO-8601 timestamp using its UTC date. */
-function toDateKey(timestamp: string): string {
-    return new Date(timestamp).toISOString().slice(0, 10);
-}
-
-// ---------------------------------------------------------------------------
-// Passage annotation — per-passage charge detail with reason
-// ---------------------------------------------------------------------------
 
 export enum NotChargedReason {
     TOLL_FREE_VEHICLE = "toll free vehicle",
@@ -140,9 +57,84 @@ export interface PassageAnnotation {
     windowIndex?: number;
 }
 
-// ---------------------------------------------------------------------------
-// Private helpers for annotatePassages
-// ---------------------------------------------------------------------------
+
+type WindowData = {
+    passages: AnnotationInput[];
+    maxFee: number;
+    triggeringId: string;
+    startISO: string;
+    endISO: string;
+}
+
+/** Converts an "HH:MM" time string to total minutes since midnight. */
+function timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(":").map(Number);
+    return hours * 60 + minutes;
+}
+
+/**
+ * Extracts the local wall-clock time in minutes since midnight from an ISO-8601
+ * timestamp. Uses the timestamp's own UTC offset (e.g. +02:00) so the result
+ * is never affected by the runtime's system timezone.
+ * Falls back to UTC when no offset is present.
+ */
+function localMinutesSinceMidnight(timestamp: string): number {
+    const date = new Date(timestamp);
+    const utcMinutes = date.getUTCHours() * 60 + date.getUTCMinutes();
+
+    const offsetMatch = timestamp.match(/([+-])(\d{2}):(\d{2})$/);
+    if (!offsetMatch) return utcMinutes;
+
+    const sign = offsetMatch[1] === "+" ? 1 : -1;
+    const offsetMinutes = sign * (Number(offsetMatch[2]) * 60 + Number(offsetMatch[3]));
+    return ((utcMinutes + offsetMinutes) % 1440 + 1440) % 1440;
+}
+
+/** Returns the toll fee in DKK for the local time encoded in the timestamp. */
+export function getBaseFee(timestamp: string): number {
+    const localMinutes = localMinutesSinceMidnight(timestamp);
+    const entry = FEE_SCHEDULE.find(
+        (e) => localMinutes >= timeToMinutes(e.from) && localMinutes <= timeToMinutes(e.to)
+    );
+    return entry?.feeDkk ?? 0;
+}
+
+/**
+ * Returns true if the date encoded in the ISO-8601 timestamp falls on a
+ * toll-free weekday (Saturday or Sunday, ISO Mon=1…Sun=7).
+ */
+function isTollFreeWeekday(date: Date): boolean {
+    const iso = date.getDay() === 0 ? 7 : date.getDay();
+
+    return TOLL_FREE_WEEKDAYS.includes(iso);
+}
+
+/**
+ * Returns true if the calendar date of the timestamp matches any entry in
+ * the provided holiday list (DD/MM/YYYY format).
+ */
+function isTollFreeHoliday(date: Date): boolean {
+    const isoToSlash = date.toLocaleDateString('en-GB',
+        { day: '2-digit', month: '2-digit', year: 'numeric' }
+    );
+
+    const holidays2025 = PUBLIC_HOLIDAYS_2025.some((h) => h.date === isoToSlash);
+    const holidays2026 = PUBLIC_HOLIDAYS_2026.some((h) => h.date === isoToSlash);
+
+    return holidays2025 || holidays2026;
+}
+
+/** Returns true if no toll should be charged for this timestamp. */
+function isTollFreeDate(timestamp: string): boolean {
+    const date = new Date(timestamp);
+
+    return isTollFreeWeekday(date) || isTollFreeHoliday(date);
+}
+
+/** Extract "YYYY-MM-DD" from an ISO-8601 timestamp using its UTC date. */
+function toDateKey(timestamp: string): string {
+    return new Date(timestamp).toISOString().slice(0, 10);
+}
 
 /** Builds a PassageAnnotation with sensible defaults, spread-overridden by the caller. */
 function makeAnnotation(p: AnnotationInput, overrides: Partial<PassageAnnotation>): PassageAnnotation {
@@ -156,14 +148,6 @@ function makeAnnotation(p: AnnotationInput, overrides: Partial<PassageAnnotation
     };
 }
 
-interface WindowData {
-    passages: AnnotationInput[];
-    maxFee: number;
-    triggeringId: string;
-    startISO: string;
-    endISO: string;
-}
-
 /**
  * Starting at `startIndex`, advances through `dayPassages` until the
  * 60-minute window closes and returns all collected passages plus the
@@ -173,20 +157,24 @@ function collectWindow(dayPassages: AnnotationInput[], startIndex: number): Wind
     const startMs = new Date(dayPassages[startIndex].timestamp).getTime();
     const endMs = startMs + CHARGE_WINDOW_MINUTES * 60_000;
 
-    let maxFee = 0;
-    let triggeringId = dayPassages[startIndex].id;
-    let j = startIndex;
+    const isWithinWindow = (p: AnnotationInput) => new Date(p.timestamp).getTime() < endMs;
 
-    for (; j < dayPassages.length && new Date(dayPassages[j].timestamp).getTime() < endMs; j++) {
-        const fee = getBaseFee(dayPassages[j].timestamp);
-        if (fee > maxFee) {
-            maxFee = fee;
-            triggeringId = dayPassages[j].id;
-        }
-    }
+    // Slice out all passages that fall within the 60-minute window
+    const remaining = dayPassages.slice(startIndex);
+    const firstOutside = remaining.findIndex((p) => !isWithinWindow(p));
+    const windowPassages = firstOutside === -1 ? remaining : remaining.slice(0, firstOutside);
+
+    // Find the passage with the highest fee — that's the one that gets charged
+    const { triggeringId, maxFee } = windowPassages.reduce(
+        (best, p) => {
+            const fee = getBaseFee(p.timestamp);
+            return fee > best.maxFee ? { triggeringId: p.id, maxFee: fee } : best;
+        },
+        { triggeringId: windowPassages[0].id, maxFee: getBaseFee(windowPassages[0].timestamp) }
+    );
 
     return {
-        passages: dayPassages.slice(startIndex, j),
+        passages: windowPassages,
         maxFee,
         triggeringId,
         startISO: new Date(startMs).toISOString(),
@@ -231,6 +219,7 @@ function annotateWindow(
 
 /** Annotates all passages for a single calendar day. */
 function annotateDay(dayPassages: AnnotationInput[]): PassageAnnotation[] {
+
     if (isTollFreeDate(dayPassages[0].timestamp)) {
         return dayPassages.map((p) => makeAnnotation(p, { reason: NotChargedReason.TOLL_FREE_DATE }));
     }
@@ -251,34 +240,35 @@ function annotateDay(dayPassages: AnnotationInput[]): PassageAnnotation[] {
     return result;
 }
 
-// ---------------------------------------------------------------------------
+/** Sorts passages chronologically (earliest first). */
+function sortByTimestamp(passages: AnnotationInput[]): AnnotationInput[] {
+    return [...passages].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+/** Groups passages by calendar date (YYYY-MM-DD), preserving chronological order within each group. */
+function groupByDate(passages: AnnotationInput[]): AnnotationInput[][] {
+    const byDate = new Map<string, AnnotationInput[]>();
+    for (const p of passages) {
+        const key = toDateKey(p.timestamp);
+        if (!byDate.has(key)) byDate.set(key, []);
+        byDate.get(key)!.push(p);
+    }
+    return [...byDate.values()];
+}
 
 /**
  * Annotates each passage with whether it was charged, how much, and why not
  * if it wasn't. Mirrors calculateDailyToll but returns per-passage detail.
  */
 export function annotatePassages(vehicleType: string, passages: AnnotationInput[]): PassageAnnotation[] {
-    const sorted = [...passages].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
+    const sorted = sortByTimestamp(passages);
 
     if (TOLL_FREE_VEHICLE_TYPES.includes(vehicleType as VehicleType)) {
         return sorted.map((p) => makeAnnotation(p, { reason: NotChargedReason.TOLL_FREE_VEHICLE }));
     }
 
-    const byDate = new Map<string, AnnotationInput[]>();
-    for (const p of sorted) {
-        const key = toDateKey(p.timestamp);
-        if (!byDate.has(key)) byDate.set(key, []);
-        byDate.get(key)!.push(p);
-    }
-
-    return [...byDate.values()].flatMap(annotateDay);
+    return groupByDate(sorted).flatMap(annotateDay);
 }
-
-// ---------------------------------------------------------------------------
-// Core calculation
-// ---------------------------------------------------------------------------
 
 /**
  * Calculate the daily toll for a single vehicle on a single calendar day.
@@ -346,10 +336,6 @@ function calculateDailyToll(
     return { totalFeeDkk: totalFee, chargedPassages };
 }
 
-// ---------------------------------------------------------------------------
-// Public entry point
-// ---------------------------------------------------------------------------
-
 /**
  * Calculate toll fees for a vehicle from a list of passages.
  *
@@ -369,11 +355,11 @@ export function calculateToll(request: DailyTollRequest): DailyTollResponse[] {
 
     // Parse and validate timestamps
     const validTimestamps: string[] = [];
-    for (const passage of request.passages) {
-        if (!passage.timestamp || isNaN(Date.parse(passage.timestamp))) {
-            notes.push(`Skipped malformed timestamp: "${passage.timestamp}".`);
+    for (const timestamp of request.passages) {
+        if (!timestamp || isNaN(Date.parse(timestamp))) {
+            notes.push(`Skipped malformed timestamp: "${timestamp}".`);
         } else {
-            validTimestamps.push(passage.timestamp);
+            validTimestamps.push(timestamp);
         }
     }
 
