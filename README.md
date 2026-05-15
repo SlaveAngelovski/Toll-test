@@ -71,7 +71,6 @@ pnpm test:backend   # backend unit tests only (Vitest)
 - **Frontend: vehicle ID search** — add a text input above the passages table to filter by vehicle ID.
 - **Frontend: vehicle type filter** — add a multi-select or checkbox group to show only passages for selected vehicle types.
 - **Frontend: date range filter** — add from/to date pickers on the passages table so operators can narrow the view without loading all records.
-- **Frontend: lift business logic out of the template**~~ — Done. `sortByTime`, `groupByVehicleId`, `groupIntoWindows`, `perDayTotals`, and the `annotatePassages` call have been extracted from `PassagesTable` into `src/app/hooks/useAnnotatedPassages.ts`. The component now only renders.
 - **Frontend: structured error handling with severity levels** — replace the single `string | null` error state with an error queue typed as `{ message: string; severity: 'info' | 'warn' | 'error' }[]`. This lets multiple concurrent errors coexist and allows the UI to style them differently (toast vs. modal vs. inline banner).
 - **Add pagination** to `GET /getPassages` — returning all passages in one response will not scale.
 - **Multi-day query support** — add `from`/`to` query parameters so callers can request passages for a specific date range without loading everything.
