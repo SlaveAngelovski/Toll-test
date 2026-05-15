@@ -1,0 +1,19 @@
+{
+  "name": "toll-fee-system",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Monorepo for toll fee backend and frontend",
+  "packageManager": "pnpm@8.6.2",
+  "scripts": {
+    "help": "node ./scripts/help.js",
+    "dev": "pnpm -r --parallel run dev",
+    "dev:backend": "pnpm --filter toll-fee-backend dev",
+    "dev:frontend": "pnpm --filter toll-fee-frontend dev",
+    "build": "pnpm -r run build",
+    "build:backend": "pnpm --filter toll-fee-backend run build",
+    "build:frontend": "pnpm --filter toll-fee-frontend run build",
+    "test": "pnpm -r run test",
+    "test:backend": "pnpm --filter toll-fee-backend run test",
+    "test:frontend": "pnpm --filter toll-fee-frontend exec echo \"No frontend tests configured\""
+  }
+}

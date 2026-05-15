@@ -1,0 +1,27 @@
+{
+  "name": "toll-fee-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Toll fee calculation frontend",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sigsiroos/toll-fee-system.git"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "bulma": "^1.0.4",
+    "next": "15.5.4",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}
