@@ -38,30 +38,16 @@ async function handleFormatErrors<D>(res: Response): Promise<D> {
   }
 }
 
-function setupErrorDialog(title: string, message: string, path: string) {
-  console.error(`Error in API call to ${path}: ${message}`);
-}
-
 
 export const apiGET = async <D>(
   path: string,
   headers: Record<string, string> = {}
 ) => {
-  try {
-    const res = await fetch(`${API_BASE_URL}/${path}`, {
-      method: 'GET',
-      headers: httpHeaders(headers),
-    });
-
-    return handleFormatErrors<D>(res)
-  } catch (error: unknown) {
-
-    setupErrorDialog(
-      '',
-      error instanceof Error ? error.message : String(error),
-      path
-    );
-  }
+  const res = await fetch(`${API_BASE_URL}/${path}`, {
+    method: 'GET',
+    headers: httpHeaders(headers),
+  });
+  return handleFormatErrors<D>(res);
 }
 
 const httpHeaders = (
@@ -76,81 +62,37 @@ const httpHeaders = (
 }
 
 export const apiPOST = async <T, D>(path: string, data: T, headers?: Record<string, string>) => {
-  try {
-    const res = await fetch(`${API_BASE_URL}/${path}`, {
-      method: 'POST',
-      headers: httpHeaders(headers),
-      body: JSON.stringify(data),
-    });
-
-    return await handleFormatErrors<D>(res)
-  } catch (error: unknown) {
-
-    setupErrorDialog(
-      '',
-      error instanceof Error ? error.message : String(error),
-      path
-    );
-  }
+  const res = await fetch(`${API_BASE_URL}/${path}`, {
+    method: 'POST',
+    headers: httpHeaders(headers),
+    body: JSON.stringify(data),
+  });
+  return handleFormatErrors<D>(res);
 }
 
 export async function fetchPassages(): Promise<Passage[]> {
-  try {
-    const data = await apiGET<ApiListResponse<Passage[]>>('api/passages/getPassages');
-    return data?.data ?? [];
-  } catch (error: unknown) {
-    setupErrorDialog(
-      '',
-      error instanceof Error ? error.message : String(error),
-      'api/passages'
-    );
-    return [];
-  }
+  const data = await apiGET<ApiListResponse<Passage[]>>('api/passages/getPassages');
+  return data?.data ?? [];
 }
 
 export async function fetchVehicleTypes(): Promise<VehicleTypeOption[]> {
-  try {
-    const data = await apiGET<ApiListResponse<VehicleTypeOption[]>>('api/meta/vehicle-types');
-    return data?.data ?? [];
-  } catch (error: unknown) {
-    setupErrorDialog(
-      '',
-      error instanceof Error ? error.message : String(error),
-      'api/meta/vehicle-types'
-    );
-    return [];
-  }
+  const data = await apiGET<ApiListResponse<VehicleTypeOption[]>>('api/meta/vehicle-types');
+  return data?.data ?? [];
 }
 
 export async function createPassage(
   payload: CreatePassagePayload
 ): Promise<void> {
-  try {
-    await apiPOST<CreatePassagePayload, Passage>('api/passages/postPassages', payload);
-  } catch (error: unknown) {
-    setupErrorDialog(
-      '',
-      error instanceof Error ? error.message : String(error),
-      'api/passages'
-    );
-  }
+  await apiPOST<CreatePassagePayload, Passage>('api/passages/postPassages', payload);
 }
 
 export async function deletePassage(id: string): Promise<void> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/passages/deletePassages/${id}`, {
-      method: 'DELETE',
-      headers: httpHeaders(),
-    });
-    if (!res.ok && res.status !== 204) {
-      const errorText = await res.text();
-      throw new Error(`API error: ${res.status} ${res.statusText} - ${errorText}`);
-    }
-  } catch (error: unknown) {
-    setupErrorDialog(
-      '',
-      error instanceof Error ? error.message : String(error),
-      `api/passages/deletePassages/${id}`
-    );
+  const res = await fetch(`${API_BASE_URL}/api/passages/deletePassages/${id}`, {
+    method: 'DELETE',
+    headers: httpHeaders(),
+  });
+  if (!res.ok && res.status !== 204) {
+    const errorText = await res.text();
+    throw new Error(`API error: ${res.status} ${res.statusText} - ${errorText}`);
   }
 }
