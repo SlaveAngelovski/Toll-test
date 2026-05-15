@@ -4,27 +4,19 @@ import { Fragment, useMemo, useState } from "react";
 import { Passage } from "@/types";
 import { annotatePassages, PassageAnnotation } from "@/passageBusiness/passagesLogic";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface WindowGroup {
+type WindowGroup = {
     windowStart: string | undefined;
     windowEnd: string | undefined;
     windowIndex: number | undefined;
     items: Array<{ passage: Passage; ann: PassageAnnotation | undefined }>;
 }
 
-interface Props {
+type Props = {
     passages: Passage[];
     loading: boolean;
     onDelete: (id: string) => void;
     onAdd: () => void;
 }
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
 
 function formatDateTime(iso: string): string {
     return new Date(iso).toLocaleString([], { hour12: false });
@@ -60,10 +52,6 @@ function windowChargedTotal(group: WindowGroup): number {
     return group.items.reduce((sum, { ann }) => sum + (ann?.chargedFee ?? 0), 0);
 }
 
-// ---------------------------------------------------------------------------
-// Data helpers
-// ---------------------------------------------------------------------------
-
 function sortByTime(passages: Passage[]): Passage[] {
     return [...passages].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
@@ -86,27 +74,24 @@ function groupIntoWindows(sorted: Passage[], annotations: PassageAnnotation[]): 
     return groups;
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+function groupByVehicleId(passages: Passage[]): Map<string, Passage[]> {
+    const map = new Map<string, Passage[]>();
+    for (const p of passages) {
+        if (!map.has(p.vehicleId)) map.set(p.vehicleId, []);
+        map.get(p.vehicleId)!.push(p);
+    }
+    return map;
+}
 
 export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-    const groups = useMemo(() => {
-        const map = new Map<string, Passage[]>();
-        for (const p of passages) {
-            if (!map.has(p.vehicleId)) map.set(p.vehicleId, []);
-            map.get(p.vehicleId)!.push(p);
-        }
-        return map;
-    }, [passages]);
+    const groups = useMemo(() => groupByVehicleId(passages), [passages]);
 
     const toggleExpand = (vehicleId: string) => {
         setExpanded((prev) => {
             const next = new Set(prev);
-            if (next.has(vehicleId)) next.delete(vehicleId);
-            else next.add(vehicleId);
+            next.has(vehicleId) ? next.delete(vehicleId) : next.add(vehicleId);
             return next;
         });
     };
@@ -126,11 +111,13 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
 
     return (
         <div className="table-container">
-            <table className="table is-fullwidth is-hoverable">
+            <table className="table is-fullwidth is-hoverable is-bordered">
                 <thead>
                     <tr>
                         <th>Vehicle ID</th>
-                        <th>Vehicle Type</th>
+                        <th>
+                            <span>Vehicle Type</span>
+                        </th>
                         <th>Last Passage</th>
                         <th>Daily Total</th>
                         <th style={{ width: "1%" }}>
@@ -153,18 +140,20 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                         return (
                             <Fragment key={vehicleId}>
                                 {/* Summary row */}
-                                <tr>
-                                    <td><strong>{vehicleId}</strong></td>
+                                <tr className="mainRowBg">
+                                    <td className="has-text-weight-medium">{vehicleId}</td>
                                     <td>{last.vehicleType}</td>
                                     <td>{formatDateTime(last.timestamp)}</td>
-                                    <td><span className={totalTag.className}>{totalTag.label}</span></td>
+                                    <td>
+                                        <span className={totalTag.className}>{totalTag.label}</span>
+                                    </td>
                                     <td>
                                         <button
                                             className="button is-small is-light"
                                             onClick={() => toggleExpand(vehicleId)}
                                             title={isExpanded ? "Collapse" : "Expand"}
                                         >
-                                            {isExpanded ? "▲" : "▼"} {sorted.length} passage{sorted.length !== 1 ? "s" : ""}
+                                            {isExpanded ? "▼" : "▶"} {sorted.length} passage{sorted.length !== 1 ? "s" : ""}
                                         </button>
                                     </td>
                                 </tr>
@@ -179,26 +168,29 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                                     return (
                                         <Fragment key={group.windowStart ?? `no-window-${gi}`}>
                                             {windowLabel && (
-                                                <tr className="has-background-grey-lighter">
-                                                    <td colSpan={5} className="is-small pl-2">
-                                                        <strong>{windowLabel}</strong>
-                                                        {windowTotal > 0 && <span className="tag is-info is-light ml-2">{windowTotal} DKK</span>}
+                                                <tr className="expandedRowWindow">
+                                                    <td colSpan={3} className="has-text-weight-medium pl-5">
+                                                        <span className="is-small is-size-7">{windowLabel}</span>
+                                                    </td>
+                                                    <td colSpan={2}>
+                                                        <span>{<span className="tag is-warning">{windowTotal} DKK</span>}</span>
                                                     </td>
                                                 </tr>
                                             )}
                                             {group.items.map(({ passage, ann }) => {
                                                 const tag = chargeTag(ann, passage.baseFee);
-                                                const indent = group.windowStart !== undefined ? "3rem" : "2.5rem";
 
                                                 return (
-                                                    <tr key={passage.id} className="has-background-light">
-                                                        <td colSpan={2} className="is-small" style={{ paddingLeft: indent, color: "#555", fontSize: "0.9em" }}>
-                                                            ↳ {formatDateTime(passage.timestamp)}
+                                                    <tr key={passage.id} className="expandedRowTimestamp">
+                                                        <td colSpan={2} className="is-small pl-5">
+                                                            <span className="pl-4">
+                                                                {formatDateTime(passage.timestamp)}
+                                                            </span>
                                                         </td>
                                                         <td className="is-small" style={{ fontSize: "0.9em" }}>Base: {ann?.baseFee ?? passage.baseFee} DKK</td>
                                                         <td><span className={tag.className} title={ann?.reason}>{tag.label}</span></td>
                                                         <td>
-                                                            <button className="button is-danger is-small is-outlined" onClick={() => onDelete(passage.id)}>
+                                                            <button className="button is-danger is-small is-light" onClick={() => onDelete(passage.id)}>
                                                                 Delete
                                                             </button>
                                                         </td>
