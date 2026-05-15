@@ -114,5 +114,5 @@ export const PUBLIC_HOLIDAYS_2026: PublicHoliday[] = [
 ];
 
 /** ISO day-of-week numbers that are always toll-free (Mon=1 … Sun=7). Saturday=6, Sunday=7. */
-export const TOLL_FREE_WEEKDAYS = [6, 7] as const;
+export const TOLL_FREE_WEEKDAYS = [6, 7] as number[];
 export type TollFreeWeekday = typeof TOLL_FREE_WEEKDAYS[number];
