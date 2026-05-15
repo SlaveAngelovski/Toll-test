@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Passage } from "@/types";
 import { annotatePassages, PassageAnnotation } from "@/passageBusiness/passagesLogic";
+import { formatDateTime, formatTime } from "../utils/dateUtils";
 
 type WindowGroup = {
     windowStart: string | undefined;
@@ -18,22 +19,10 @@ type Props = {
     onAdd: () => void;
 }
 
-function formatDateTime(iso: string): string {
-    return new Date(iso).toLocaleString([], { hour12: false });
-}
 
-function formatTime(iso: string): string {
-    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-}
 
 function formatWindowHeader(start: string, end: string, index: number): string {
-    const startLabel = new Date(start).toLocaleString([], {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-    });
+    const startLabel = formatDateTime(start);
     return `Window ${index + 1}: ${startLabel} – ${formatTime(end)}`;
 }
 

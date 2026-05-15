@@ -55,3 +55,26 @@ export function toDateKey(timestamp: string): string {
     const d = String(zoned.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
 }
+
+/** Formats a timestamp into a human-friendly date and time string in Copenhagen time. */
+export function formatDateTime(timestamp: string): string {
+    const zoned = toCopenhagenTime(new Date(timestamp));
+    return zoned.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    });
+}
+
+/** Formats a timestamp into a human-friendly time string in Copenhagen time. */
+export function formatTime(timestamp: string): string {
+    const zoned = toCopenhagenTime(new Date(timestamp));
+    return zoned.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    });
+}
