@@ -1,16 +1,10 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useState } from "react";
 import { Passage } from "@/types";
-import { annotatePassages, PassageAnnotation } from "@/passageBusiness/passagesLogic";
-import { formatDateTime, formatTime, toDateKey } from "../utils/dateUtils";
-
-type WindowGroup = {
-    windowStart: string | undefined;
-    windowEnd: string | undefined;
-    windowIndex: number | undefined;
-    items: Array<{ passage: Passage; ann: PassageAnnotation | undefined }>;
-}
+import { PassageAnnotation } from "@/passageBusiness/passagesLogic";
+import { formatDateTime, formatTime } from "../utils/dateUtils";
+import { useAnnotatedPassages, WindowGroup } from "../hooks/useAnnotatedPassages";
 
 type Props = {
     passages: Passage[];
@@ -18,8 +12,6 @@ type Props = {
     onDelete: (id: string) => void;
     onAdd: () => void;
 }
-
-
 
 function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" });
@@ -45,53 +37,10 @@ function windowChargedTotal(group: WindowGroup): number {
     return group.items.reduce((sum, { ann }) => sum + (ann?.chargedFee ?? 0), 0);
 }
 
-function sortByTime(passages: Passage[]): Passage[] {
-    return [...passages].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-}
-
-function groupIntoWindows(sorted: Passage[], annotations: PassageAnnotation[]): WindowGroup[] {
-    const annMap = new Map(annotations.map((a) => [a.id, a]));
-    const groups: WindowGroup[] = [];
-    const seenWindows = new Map<string, number>();
-
-    for (const passage of sorted) {
-        const ann = annMap.get(passage.id);
-        // Passages without a window (toll-free day/vehicle) fall back to their calendar
-        // date so that different days never share the same group.
-        const key = ann?.windowStart ?? toDateKey(passage.timestamp);
-        if (!seenWindows.has(key)) {
-            seenWindows.set(key, groups.length);
-            groups.push({ windowStart: ann?.windowStart, windowEnd: ann?.windowEnd, windowIndex: ann?.windowIndex, items: [] });
-        }
-        groups[seenWindows.get(key)!].items.push({ passage, ann });
-    }
-
-    return groups;
-}
-
-function groupByVehicleId(passages: Passage[]): Map<string, Passage[]> {
-    const map = new Map<string, Passage[]>();
-    for (const p of passages) {
-        if (!map.has(p.vehicleId)) map.set(p.vehicleId, []);
-        map.get(p.vehicleId)!.push(p);
-    }
-    return map;
-}
-
-/** Groups annotations by calendar day and returns the charged total for each day. */
-function perDayTotals(annotations: PassageAnnotation[]): { dateKey: string; total: number }[] {
-    const byDay = new Map<string, number>();
-    for (const ann of annotations) {
-        const key = toDateKey(ann.timestamp);
-        byDay.set(key, (byDay.get(key) ?? 0) + ann.chargedFee);
-    }
-    return Array.from(byDay.entries()).map(([dateKey, total]) => ({ dateKey, total }));
-}
-
 export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-    const groups = useMemo(() => groupByVehicleId(passages), [passages]);
+    const vehicleData = useAnnotatedPassages(passages);
 
     const toggleExpand = (vehicleId: string) => {
         setExpanded((prev) => {
@@ -133,13 +82,8 @@ export function PassagesTable({ passages, loading, onDelete, onAdd }: Props) {
                     </tr>
                 </thead>
                 <tbody>
-                    {Array.from(groups.entries()).map(([vehicleId, vPassages]) => {
-                        const sorted = sortByTime(vPassages);
-                        const last = sorted[sorted.length - 1];
+                    {Array.from(vehicleData.entries()).map(([vehicleId, { sorted, last, dayTotals, windows }]) => {
                         const isExpanded = expanded.has(vehicleId);
-                        const annotations = annotatePassages(last.vehicleType, sorted.map((p) => ({ id: p.id, timestamp: p.timestamp })));
-                        const dayTotals = perDayTotals(annotations);
-                        const windows = groupIntoWindows(sorted, annotations);
 
                         return (
                             <Fragment key={vehicleId}>
