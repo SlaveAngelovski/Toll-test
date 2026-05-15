@@ -95,6 +95,24 @@ export const PUBLIC_HOLIDAYS_2025: PublicHoliday[] = [
     { date: "26/12/2025", description: "Boxing Day" },
 ];
 
+export const PUBLIC_HOLIDAYS_2026: PublicHoliday[] = [
+    { date: "01/01/2026", description: "New Year's Day" },
+    { date: "06/04/2026", description: "Maundy Monday" },
+    { date: "07/04/2026", description: "Good Tuesday" },
+    { date: "08/04/2026", description: "Holy Wednesday" },
+    { date: "09/04/2026", description: "Maundy Thursday" },
+    { date: "10/04/2026", description: "Good Friday" },
+    { date: "11/04/2026", description: "Holy Saturday" },
+    { date: "12/04/2026", description: "Easter Sunday" },
+    { date: "13/04/2026", description: "Easter Monday" },
+    { date: "21/05/2026", description: "Ascension Day" },
+    { date: "31/05/2026", description: "Whit Sunday" },
+    { date: "01/06/2026", description: "Whit Monday" },
+    { date: "24/12/2026", description: "Christmas Eve" },
+    { date: "25/12/2026", description: "Christmas Day" },
+    { date: "26/12/2026", description: "Boxing Day" },
+];
+
 /** ISO day-of-week numbers that are always toll-free (Mon=1 … Sun=7). Saturday=6, Sunday=7. */
 export const TOLL_FREE_WEEKDAYS = [6, 7] as const;
 export type TollFreeWeekday = typeof TOLL_FREE_WEEKDAYS[number];
