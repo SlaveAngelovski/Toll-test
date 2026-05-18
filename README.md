@@ -44,11 +44,11 @@ pnpm test:backend   # backend unit tests only (Vitest)
 ### Assumptions
 
 - **Timezone is Europe/Copenhagen** — all toll-free day/holiday logic runs in that timezone regardless of where the server is hosted.
-- **Holiday tables are hardcoded** — the frontend has static lists for 2025 and 2026 (`passagesRules.ts`); the backend only covers 2024 and 2025 (`datetime.ts`). Dates outside those ranges are treated as non-holidays. The backend is therefore missing 2026 holidays and both sides need a dynamic solution.
+- **Holiday tables are hardcoded** — the frontend has static lists for 2025 and 2026 (`passagesRules.ts`), the backend only covers 2024 and 2025 (`datetime.ts`). Dates outside those ranges are treated as non-holidays. The backend is therefore missing 2026 holidays and both sides need a dynamic solution.
 - **Charge calculation lives in the frontend** — `passagesLogic.ts` re-implements the hourly window and daily cap rules client-side for display purposes. This is intentional for responsiveness but means the two implementations must be kept in sync.
-- **Single-toll-station model** — there is no concept of multiple gates or corridors; every passage is treated as a single chargeable event at one station.
-- **Vehicle ID is a free-form string** — no registration-plate validation is performed; callers are trusted to supply consistent identifiers.
-- **Passages are immutable after creation** — the API supports create and delete only; editing a passage requires delete + re-create.
+- **Single-toll-station model** — there is no concept of multiple gates or corridors, every passage is treated as a single chargeable event at one station.
+- **Vehicle ID is a free-form string** — no registration-plate validation is performed, callers are trusted to supply consistent identifiers.
+- **Passages are immutable after creation** — the API supports create and delete only, editing a passage requires delete + re-create.
 
 ---
 
@@ -100,18 +100,18 @@ The priority test areas are:
 | Function | Cases to cover |
 |---|---|
 | `toDateKey` | UTC midnight boundary (a timestamp just before and just after midnight Copenhagen time should produce different date keys) |
-| `isTollFreeHoliday` | Known 2025 and 2026 holidays return `true`; adjacent non-holiday dates return `false` |
-| `isTollFreeWeekday` | Saturday and Sunday in Copenhagen time return `true`; Friday returns `false` |
+| `isTollFreeHoliday` | Known 2025 and 2026 holidays return `true`, adjacent non-holiday dates return `false` |
+| `isTollFreeWeekday` | Saturday and Sunday in Copenhagen time return `true`, Friday returns `false` |
 | `isTollFreeDate` | A holiday that falls on a weekday, a weekend that is not a holiday |
 | `localMinutesSinceMidnight` | Timestamps across a DST transition produce correct local minutes |
 | `formatDateTime` / `formatTime` | Output matches expected locale string for a fixed Copenhagen timestamp |
-| `annotatePassages` — window grouping | Two passages within 60 min → same window; passage at exactly 60 min → new window |
-| `annotatePassages` — highest-fee rule | Within a window, only the passage with the highest base fee is marked `charged`; ties broken by earliest timestamp |
+| `annotatePassages` — window grouping | Two passages within 60 min → same window, passage at exactly 60 min → new window |
+| `annotatePassages` — highest-fee rule | Within a window, only the passage with the highest base fee is marked `charged`, ties broken by earliest timestamp |
 | `annotatePassages` — daily cap | Charges stop (or are partial) once the 120 DKK cap is reached for a vehicle on a given calendar day |
 | `annotatePassages` — toll-free vehicle | All passages for a toll-free vehicle type have `chargedFee = 0` |
 | `annotatePassages` — toll-free date | All passages on a weekend/holiday have `chargedFee = 0` regardless of vehicle type |
 | `annotatePassages` — multi-day | Passages spanning midnight are grouped into separate calendar days with independent caps |
-| `getBaseFee` | Each fee-schedule interval boundary returns the correct fee; off-peak returns 0 |
+| `getBaseFee` | Each fee-schedule interval boundary returns the correct fee, off-peak returns 0 |
 | `groupIntoWindows` | Toll-free passages (no `windowStart`) are each placed in their own group keyed by calendar date |
 | `groupIntoWindows` | Multiple windows on the same day produce distinct groups in chronological order |
 | `perDayTotals` | Totals are scoped per `(vehicleId, dateKey)` and do not bleed across vehicles or days |
